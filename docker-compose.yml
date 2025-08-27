@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  srpk:
+    build: .
+    image: srpk:3.1
+    container_name: srpk-analyzer
+    volumes:
+      - ./test_project:/app/test_project
+      - ./output:/app/output
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: /app/test_project
