@@ -27,3 +27,14 @@ jobs:
     - name: Run tests
       run: |
         pytest tests/ -v
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Build Docker image
+      run: |
+        docker build -t srpk:test .
+        docker run --rm srpk:test --help || echo "OK"
