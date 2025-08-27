@@ -217,16 +217,11 @@ This software is proprietary and confidential. See [LICENSE](LICENSE) for detail
 
 ## 🆘 Support
 
-- 📧 Email: support@msc-srpk.com
+- 📧 Email: msc.framework@gmail.com
 - 💬 Discord: [Join our community](https://discord.gg/srpk)
 - 📚 Documentation: [docs.msc-srpk.com](https://docs.msc-srpk.com)
 - 🐛 Issues: [GitHub Issues](https://github.com/your-org/srpk/issues)
 
-## 🏆 Awards & Recognition
-
-- 🥇 "Best Code Analysis Tool 2024" - DevTools Awards
-- ⭐ Featured in Python Weekly Newsletter
-- 🚀 Used by Fortune 500 companies
 
 ## 📈 Performance Benchmarks
 
