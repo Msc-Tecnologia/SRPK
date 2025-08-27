@@ -1,3 +1,4 @@
+![CI](https://github.com/Msc-Tecnologia/SRPK/workflows/CI/badge.svg)
 # MSC SRPK v3.1 - Self-Referencing Proprietary Knowledge Graph
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
