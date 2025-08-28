@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel", "build"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "srpk"
+version = "0.1.0"
+description = "SRPK — Semantic Repository & Project Knowledge (análisis estático + grafo de conocimiento de proyectos)."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Raúl Cruz Acosta"}]
+license = { file = "LICENSE" }
+keywords = ["srpk","knowledge-graph","static-analysis","msc"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Business Source License 1.1 (BSL-1.1)",
+  "Operating System :: OS Independent",
+]
+
+dependencies = [
+  "rich>=13",
+  "networkx>=3",
+  "pydantic>=2",
+  # agrega aquí numpy, scikit-learn, etc. si SRPK los usa realmente
+]
+
+[project.urls]
+Homepage = "https://github.com/tu-org/srpk"
+Documentation = "https://tu-org.github.io/srpk/"
+Changelog = "https://github.com/tu-org/srpk/releases"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["srpk*"]
+
+[tool.srpk]
+# espacio para flags internos de tu CLI
