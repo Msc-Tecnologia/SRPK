@@ -1,0 +1,26 @@
+name: release-please
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          release-type: python
+          package-name: srpk
+          bump-minor-pre-major: true
+          changelog-types: >-
+            [{"type":"feat","section":"Features"},
+             {"type":"fix","section":"Bug Fixes"},
+             {"type":"perf","section":"Performance"},
+             {"type":"docs","section":"Docs"},
+             {"type":"refactor","section":"Refactor"},
+             {"type":"test","section":"Tests"},
+             {"type":"build","section":"Build"}]
