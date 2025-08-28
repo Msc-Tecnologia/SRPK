@@ -40,3 +40,7 @@ include = ["srpk*"]
 
 [tool.srpk]
 # espacio para flags internos de la CLI
+
+
+[project.scripts]
+srpk = "srpk.cli:main"
