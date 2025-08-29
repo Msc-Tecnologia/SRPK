@@ -1,0 +1,454 @@
+name: Complete Deploy SRPK Pro
+
+permissions:
+  contents: read
+  packages: write
+  deployments: write
+
+on:
+  push:
+    branches: [ main, production ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Code quality and security checks
+  quality-checks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+    
+    - name: Run linting
+      run: |
+        flake8 src/ payment_api.py download_api.py license_manager.py --max-line-length=100
+        black --check src/ payment_api.py download_api.py license_manager.py
+        pylint src/ payment_api.py download_api.py license_manager.py || true
+    
+    - name: Run type checking
+      run: |
+        mypy src/ payment_api.py download_api.py license_manager.py --ignore-missing-imports
+    
+    - name: Run security checks
+      run: |
+        bandit -r src/ payment_api.py download_api.py license_manager.py -f json -o bandit-report.json
+        safety check --json
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  # Run tests
+  test:
+    needs: quality-checks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+    
+    - name: Set up test environment
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379
+        STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+        JWT_SECRET_KEY: test_jwt_secret
+      run: |
+        echo "Test environment configured"
+    
+    - name: Run tests
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379
+        STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+        JWT_SECRET_KEY: test_jwt_secret
+      run: |
+        pytest tests/ -v --cov=src --cov=payment_api --cov=download_api --cov=license_manager --cov-report=xml --cov-report=html
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+    
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: htmlcov/
+
+  # Build Docker images
+  build-images:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [srpk-app, payment-api, download-api, landing]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile.${{ matrix.service }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          VCS_REF=${{ github.sha }}
+          VERSION=${{ github.ref_name }}
+
+  # Deploy to staging
+  deploy-staging:
+    needs: build-images
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://staging.srpk.io
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Create deployment
+      uses: chrnorm/deployment-action@v2
+      id: deployment
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        environment: staging
+        ref: ${{ github.ref }}
+    
+    - name: Deploy to staging
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.STAGING_HOST }}
+        username: ${{ secrets.STAGING_USER }}
+        key: ${{ secrets.STAGING_SSH_KEY }}
+        script: |
+          cd /opt/srpk
+          
+          # Backup current environment
+          cp .env .env.backup
+          
+          # Update environment variables
+          cat > .env << EOF
+          # Stripe Configuration
+          STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_TEST_PUBLISHABLE_KEY }}
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_TEST_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_TEST_WEBHOOK_SECRET }}
+          
+          # PayPal Configuration
+          PAYPAL_CLIENT_ID=${{ secrets.PAYPAL_SANDBOX_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET=${{ secrets.PAYPAL_SANDBOX_CLIENT_SECRET }}
+          PAYPAL_MODE=sandbox
+          
+          # Database
+          DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }}
+          DB_PASSWORD=${{ secrets.STAGING_DB_PASSWORD }}
+          
+          # Redis
+          REDIS_URL=${{ secrets.STAGING_REDIS_URL }}
+          REDIS_PASSWORD=${{ secrets.STAGING_REDIS_PASSWORD }}
+          
+          # Other configs
+          JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}
+          EOF
+          
+          # Pull latest images
+          docker-compose -f docker-compose.yml pull
+          
+          # Run database migrations
+          docker-compose run --rm payment-api python manage.py migrate
+          
+          # Deploy services
+          docker-compose up -d --remove-orphans
+          
+          # Health check
+          sleep 10
+          curl -f http://localhost/health || exit 1
+          
+          # Cleanup
+          docker system prune -f
+    
+    - name: Update deployment status
+      uses: chrnorm/deployment-status@v2
+      if: always()
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+        state: ${{ job.status }}
+        environment-url: https://staging.srpk.io
+
+  # Deploy to production
+  deploy-production:
+    needs: build-images
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/production' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    environment:
+      name: production
+      url: https://srpk.io
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Create deployment
+      uses: chrnorm/deployment-action@v2
+      id: deployment
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        environment: production
+        ref: ${{ github.ref }}
+    
+    - name: Deploy to production
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.PRODUCTION_HOST }}
+        username: ${{ secrets.PRODUCTION_USER }}
+        key: ${{ secrets.PRODUCTION_SSH_KEY }}
+        script: |
+          cd /opt/srpk
+          
+          # Backup current environment and data
+          cp .env .env.backup-$(date +%Y%m%d-%H%M%S)
+          docker-compose exec postgres pg_dump -U srpk_user srpk_db > backup-$(date +%Y%m%d-%H%M%S).sql
+          
+          # Update environment variables
+          cat > .env << EOF
+          # Application
+          APP_ENV=production
+          APP_DEBUG=false
+          
+          # Stripe Configuration (Production)
+          STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_LIVE_PUBLISHABLE_KEY }}
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_LIVE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_LIVE_WEBHOOK_SECRET }}
+          
+          # PayPal Configuration (Production)
+          PAYPAL_CLIENT_ID=${{ secrets.PAYPAL_LIVE_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET=${{ secrets.PAYPAL_LIVE_CLIENT_SECRET }}
+          PAYPAL_MODE=live
+          
+          # Database
+          DATABASE_URL=${{ secrets.PRODUCTION_DATABASE_URL }}
+          DB_PASSWORD=${{ secrets.PRODUCTION_DB_PASSWORD }}
+          
+          # Redis
+          REDIS_URL=${{ secrets.PRODUCTION_REDIS_URL }}
+          REDIS_PASSWORD=${{ secrets.PRODUCTION_REDIS_PASSWORD }}
+          
+          # Security
+          JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          
+          # Email
+          SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}
+          FROM_EMAIL=licenses@srpk.io
+          SUPPORT_EMAIL=support@srpk.io
+          
+          # AWS (for downloads)
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_S3_BUCKET=srpk-downloads
+          AWS_S3_REGION=us-east-1
+          
+          # Monitoring
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          NEW_RELIC_LICENSE_KEY=${{ secrets.NEW_RELIC_LICENSE_KEY }}
+          EOF
+          
+          # Pull latest images
+          docker-compose -f docker-compose.yml -f docker-compose.prod.yml pull
+          
+          # Run database migrations with backup
+          docker-compose run --rm payment-api python manage.py migrate --noinput
+          
+          # Deploy services with zero downtime
+          docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --scale payment-api=3 --scale download-api=2
+          
+          # Wait for services to be healthy
+          sleep 30
+          
+          # Health checks
+          curl -f https://api.srpk.io/health || exit 1
+          curl -f https://downloads.srpk.io/health || exit 1
+          
+          # Cleanup old containers and images
+          docker system prune -af --filter "until=24h"
+    
+    - name: Run smoke tests
+      run: |
+        # Test payment API
+        curl -f https://api.srpk.io/health
+        
+        # Test download API
+        curl -f https://downloads.srpk.io/health
+        
+        # Test main application
+        curl -f https://app.srpk.io
+    
+    - name: Update deployment status
+      uses: chrnorm/deployment-status@v2
+      if: always()
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+        state: ${{ job.status }}
+        environment-url: https://srpk.io
+    
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        text: |
+          Production deployment ${{ job.status }}
+          Commit: ${{ github.event.head_commit.message }}
+          Author: ${{ github.event.head_commit.author.name }}
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  # Post-deployment monitoring
+  monitor-deployment:
+    needs: [deploy-staging, deploy-production]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check service health
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/production" ]]; then
+          URLS=(
+            "https://srpk.io"
+            "https://api.srpk.io/health"
+            "https://downloads.srpk.io/health"
+          )
+        else
+          URLS=(
+            "https://staging.srpk.io"
+            "https://staging-api.srpk.io/health"
+          )
+        fi
+        
+        for url in "${URLS[@]}"; do
+          echo "Checking $url"
+          curl -f -s -o /dev/null -w "%{http_code}" "$url" || echo "Failed to reach $url"
+        done
+    
+    - name: Create issue on failure
+      if: failure()
+      uses: actions/create-issue@v2
+      with:
+        title: Deployment Failed - ${{ github.ref_name }}
+        body: |
+          ## Deployment Failed
+          
+          **Branch:** ${{ github.ref_name }}
+          **Commit:** ${{ github.sha }}
+          **Author:** ${{ github.event.head_commit.author.name }}
+          **Message:** ${{ github.event.head_commit.message }}
+          
+          Please check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+        labels: bug, deployment

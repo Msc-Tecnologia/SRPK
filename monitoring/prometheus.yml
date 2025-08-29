@@ -1,0 +1,79 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'srpk-monitor'
+    environment: 'production'
+
+scrape_configs:
+  # Payment API metrics
+  - job_name: 'payment-api'
+    static_configs:
+      - targets: ['payment-api:5000']
+        labels:
+          service: 'payment'
+          component: 'api'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Download API metrics
+  - job_name: 'download-api'
+    static_configs:
+      - targets: ['download-api:5001']
+        labels:
+          service: 'download'
+          component: 'api'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # SRPK App metrics
+  - job_name: 'srpk-app'
+    static_configs:
+      - targets: ['srpk-app:8000']
+        labels:
+          service: 'srpk'
+          component: 'app'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # PostgreSQL metrics (using postgres_exporter)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'database'
+          component: 'postgres'
+
+  # Redis metrics (using redis_exporter)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'cache'
+          component: 'redis'
+
+  # Nginx metrics
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+        labels:
+          service: 'proxy'
+          component: 'nginx'
+
+  # Node metrics (for server monitoring)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'infrastructure'
+          component: 'server'
+
+# Alerting rules
+rule_files:
+  - '/etc/prometheus/alerts/*.yml'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
