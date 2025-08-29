@@ -2,7 +2,6 @@
 SRPK Pro Payment API
 Handles Stripe payment processing for SRPK Pro licenses
 """
-
 import os
 import json
 import logging
@@ -10,6 +9,7 @@ from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import stripe
+import paypalrestsdk
 from dotenv import load_dotenv
 import paypalrestsdk
 import jwt
@@ -33,6 +33,13 @@ stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
 # Configure PayPal
 paypalrestsdk.configure({
+ cursor/finalizar-despliegue-y-configurar-pagos-y-workflow-0b32
+    "mode": os.getenv('PAYPAL_MODE', 'sandbox'),
+    "client_id": os.getenv('PAYPAL_CLIENT_ID'),
+    "client_secret": os.getenv('PAYPAL_CLIENT_SECRET')
+})
+
+
     "mode": os.getenv('PAYPAL_MODE', 'sandbox'),  # sandbox or live
     "client_id": os.getenv('PAYPAL_CLIENT_ID', ''),
     "client_secret": os.getenv('PAYPAL_CLIENT_SECRET', '')
@@ -41,6 +48,7 @@ paypalrestsdk.configure({
 # JWT Secret for license tokens
 JWT_SECRET = os.getenv('JWT_SECRET', 'change-me-in-production')
 
+ main
 # Price IDs mapping
 PRICE_IDS = {
     'price_starter': {
@@ -211,7 +219,113 @@ def stripe_webhook():
         # Send payment failure notification
     
     return jsonify({'received': True})
+ cursor/finalizar-despliegue-y-configurar-pagos-y-workflow-0b32
+@app.route('/api/process-paypal-payment', methods=['POST'])
+def process_paypal_payment():
+    """Process PayPal payment for SRPK Pro license"""
+    try:
+        data = request.json
+        
+        # Validate required fields
+        required_fields = ['paymentId', 'payerId', 'priceId', 'email', 'name']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Missing required field: {field}'
+                }), 400
+        
+        # Validate price ID
+        price_id = data['priceId']
+        if price_id not in PRICE_IDS:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid price ID'
+            }), 400
+        
+        price_info = PRICE_IDS[price_id]
+        
+        # Execute PayPal payment
+        payment = paypalrestsdk.Payment.find(data['paymentId'])
+        
+        if payment.execute({"payer_id": data['payerId']}):
+            logger.info(f"PayPal payment executed successfully: {payment.id}")
+            
+            # Create customer record
+            try:
+                # Generate license key
+                license_key = generate_license_key(data['email'], payment.id)
+                
+                # Send license email
+                send_license_email(
+                    data['email'], 
+                    data['name'], 
+                    license_key, 
+                    price_info['product_name']
+                )
+                
+                # Store payment record (implement database storage)
+                store_paypal_payment({
+                    'payment_id': payment.id,
+                    'email': data['email'],
+                    'name': data['name'],
+                    'product': price_info['product_name'],
+                    'amount': price_info['amount'],
+                    'license_key': license_key
+                })
+                
+                return jsonify({
+                    'success': True,
+                    'payment_id': payment.id,
+                    'message': 'Payment processed successfully. Check your email for license details.'
+                })
+            
+            except Exception as e:
+                logger.error(f"Error processing PayPal payment: {str(e)}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Error creating license. Please contact support.'
+                }), 500
+        else:
+            logger.error(f"PayPal payment execution failed: {payment.error}")
+            return jsonify({
+                'success': False,
+                'error': 'Payment execution failed. Please try again.'
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"Unexpected PayPal error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'An unexpected error occurred. Please try again later.'
+        }), 500
 
+@app.route('/api/create-paypal-payment', methods=['POST'])
+def create_paypal_payment():
+    """Create PayPal payment for approval"""
+    try:
+        data = request.json
+        
+        # Validate price ID
+        price_id = data.get('priceId')
+        if price_id not in PRICE_IDS:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid price ID'
+            }), 400
+        
+        price_info = PRICE_IDS[price_id]
+        
+        # Create PayPal payment
+        payment = paypalrestsdk.Payment({
+            "intent": "sale",
+            "payer": {
+                "payment_method": "paypal"
+            },
+            "redirect_urls": {
+                "return_url": f"{os.getenv('APP_URL')}/payment/success",
+                "cancel_url": f"{os.getenv('APP_URL')}/payment/cancel"
+=======
 @app.route('/api/paypal/create-payment', methods=['POST'])
 def paypal_create_payment():
     """Create PayPal payment and return approval URL"""
@@ -234,18 +348,67 @@ def paypal_create_payment():
             "redirect_urls": {
                 "return_url": data['returnUrl'],
                 "cancel_url": data['cancelUrl']
+ main
             },
             "transactions": [{
                 "item_list": {
                     "items": [{
                         "name": price_info['product_name'],
                         "sku": price_id,
-                        "price": f"{price_info['amount'] / 100:.2f}",
+ cursor/finalizar-despliegue-y-configurar-pagos-y-workflow-0b32
+                        "price": str(price_info['amount'] / 100),
+
+ main
                         "currency": price_info['currency'].upper(),
                         "quantity": 1
                     }]
                 },
                 "amount": {
+ cursor/finalizar-despliegue-y-configurar-pagos-y-workflow-0b32
+                    "total": str(price_info['amount'] / 100),
+                    "currency": price_info['currency'].upper()
+                },
+                "description": f"{price_info['product_name']} License"
+            }]
+        })
+        
+        if payment.create():
+            logger.info(f"PayPal payment created: {payment.id}")
+            
+            # Find approval URL
+            approval_url = None
+            for link in payment.links:
+                if link.rel == "approval_url":
+                    approval_url = link.href
+                    break
+            
+            return jsonify({
+                'success': True,
+                'paymentId': payment.id,
+                'approvalUrl': approval_url
+            })
+        else:
+            logger.error(f"PayPal payment creation failed: {payment.error}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to create payment. Please try again.'
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"Unexpected error creating PayPal payment: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'An unexpected error occurred. Please try again later.'
+        }), 500
+
+def store_paypal_payment(payment_data):
+    """Store PayPal payment record in database"""
+    # This is a placeholder - implement based on your database schema
+    logger.info(f"Would store PayPal payment: {payment_data}")
+    # Example implementation:
+    # db.session.add(PayPalPayment(**payment_data))
+    # db.session.commit()
+
                     "total": f"{price_info['amount'] / 100:.2f}",
                     "currency": price_info['currency'].upper()
                 },
@@ -373,6 +536,7 @@ def secure_download():
         return jsonify({'success': False, 'error': 'Token expired'}), 401
     except jwt.InvalidTokenError:
         return jsonify({'success': False, 'error': 'Invalid token'}), 401
+ main
 
 def generate_license_key(customer_id, subscription_id):
     """Generate a unique license key"""

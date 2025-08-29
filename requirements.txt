@@ -31,9 +31,28 @@ mkdocs-material>=9
 flask>=3.0
 flask-cors>=4.0
 stripe>=7.0
+paypalrestsdk>=1.13.1
 python-dotenv>=1.0
 gunicorn>=21.0
 
+ cursor/finalizar-despliegue-y-configurar-pagos-y-workflow-0b32
+# Email and Cloud services
+sendgrid>=6.10
+boto3>=1.28
+requests>=2.31
+
+# Database
+psycopg2-binary>=2.9
+redis>=4.5
+
+# Security
+pyjwt>=2.8
+cryptography>=41.0
+
+# Task Queue (optional)
+celery>=5.3
+kombu>=5.3
+=======
 # Payments: PayPal SDK
 paypalrestsdk>=1.13.1
 
@@ -44,3 +63,4 @@ PyJWT>=2.8.0
 # sendgrid>=6.10
 # boto3>=1.28  # for AWS SES
 # requests>=2.31  # for Mailgun
+ main
