@@ -1,24 +1,635 @@
-<!doctype html><html><head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>SRPK Pro</title>
-  <style>body{font-family:system-ui;margin:0;background:#0b0b0c;color:#fff}
-  .wrap{max-width:840px;margin:0 auto;padding:48px 24px}
-  .card{background:#141416;border:1px solid #232327;border-radius:16px;padding:24px}
-  .btn{display:inline-block;padding:14px 20px;border-radius:10px;background:#4e72ff;color:white;text-decoration:none}
-  .grid{display:grid;gap:16px;grid-template-columns:1fr 1fr}
-  </style>
-</head><body><div class="wrap">
-  <h1>SRPK Pro</h1>
-  <p>Reportes avanzados, conectores empresariales y soporte.</p>
-  <div class="card">
-    <div class="grid">
-      <div><h3>Licencia anual</h3><p>Actualizaciones y soporte.</p></div>
-      <div style="text-align:right">
-        <!-- Reemplaza con tu Stripe Payment Link -->
-        <a class="btn" href="https://buy.stripe.com/XXXXXX">Comprar</a>
-      </div>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRPK Pro - Análisis Empresarial de Código Python</title>
+    <meta name="description" content="SRPK Pro - Herramienta profesional para análisis semántico de repositorios Python con reportes avanzados y soporte empresarial.">
+    
+    <!-- Stripe JS -->
+    <script src="https://js.stripe.com/v3/"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #4e72ff;
+            --primary-dark: #3859e6;
+            --secondary: #10b981;
+            --dark: #0b0b0c;
+            --card-bg: #141416;
+            --border: #232327;
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --success: #22c55e;
+            --gradient: linear-gradient(135deg, #4e72ff 0%, #667eea 100%);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--dark);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Header */
+        header {
+            padding: 48px 0;
+            text-align: center;
+            background: var(--gradient);
+            margin-bottom: 48px;
+        }
+
+        .logo {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 16px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .tagline {
+            font-size: 1.25rem;
+            opacity: 0.95;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Features Section */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin-bottom: 48px;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 32px rgba(78, 114, 255, 0.1);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            font-size: 24px;
+        }
+
+        .feature-title {
+            font-size: 1.25rem;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .feature-description {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Pricing Section */
+        .pricing-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 48px;
+            margin-bottom: 48px;
+            text-align: center;
+        }
+
+        .pricing-title {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+
+        .pricing-subtitle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+
+        .pricing-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 32px;
+            margin-bottom: 24px;
+        }
+
+        .pricing-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .pricing-card.featured {
+            border-color: var(--primary);
+            transform: scale(1.05);
+        }
+
+        .pricing-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 12px 48px rgba(78, 114, 255, 0.2);
+        }
+
+        .plan-name {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .plan-price {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+
+        .plan-period {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .plan-features {
+            list-style: none;
+            margin-bottom: 32px;
+            text-align: left;
+        }
+
+        .plan-features li {
+            padding: 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-secondary);
+        }
+
+        .plan-features li::before {
+            content: "✓";
+            color: var(--success);
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
+            width: 100%;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: var(--gradient);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(78, 114, 255, 0.3);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Payment Form */
+        .payment-form {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 48px;
+            display: none;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        #card-element {
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .payment-errors {
+            color: #ef4444;
+            margin-top: 12px;
+            font-size: 0.875rem;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 48px 0;
+            color: var(--text-secondary);
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        /* Loading State */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Success Message */
+        .success-message {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid var(--success);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+            text-align: center;
+            color: var(--success);
+            display: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 2rem;
+            }
+
+            .pricing-card.featured {
+                transform: none;
+            }
+
+            .footer-links {
+                flex-direction: column;
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <h1 class="logo">SRPK Pro</h1>
+            <p class="tagline">Análisis Semántico Avanzado para Repositorios Python Empresariales</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Features -->
+        <section class="features">
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3 class="feature-title">Reportes Avanzados</h3>
+                <p class="feature-description">Análisis detallado de código con métricas de calidad, complejidad y mantenibilidad.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔌</div>
+                <h3 class="feature-title">Conectores Empresariales</h3>
+                <p class="feature-description">Integración con GitLab, GitHub Enterprise, Bitbucket y sistemas CI/CD.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🛡️</div>
+                <h3 class="feature-title">Seguridad y Cumplimiento</h3>
+                <p class="feature-description">Escaneo de vulnerabilidades y verificación de estándares de código.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🚀</div>
+                <h3 class="feature-title">Optimización de Rendimiento</h3>
+                <p class="feature-description">Identificación de cuellos de botella y sugerencias de optimización.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <h3 class="feature-title">IA Asistida</h3>
+                <p class="feature-description">Recomendaciones inteligentes basadas en mejores prácticas de la industria.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📱</div>
+                <h3 class="feature-title">Soporte Premium</h3>
+                <p class="feature-description">Soporte técnico prioritario con SLA garantizado 24/7.</p>
+            </div>
+        </section>
+
+        <!-- Success Message -->
+        <div id="success-message" class="success-message">
+            ¡Pago procesado exitosamente! Recibirás un correo con los detalles de tu licencia.
+        </div>
+
+        <!-- Pricing -->
+        <section class="pricing-section">
+            <h2 class="pricing-title">Planes y Precios</h2>
+            <p class="pricing-subtitle">Elige el plan que mejor se adapte a tu equipo</p>
+
+            <div class="pricing-cards">
+                <div class="pricing-card">
+                    <h3 class="plan-name">Starter</h3>
+                    <div class="plan-price">$99</div>
+                    <div class="plan-period">por mes</div>
+                    <ul class="plan-features">
+                        <li>Hasta 5 repositorios</li>
+                        <li>Análisis básico de código</li>
+                        <li>Reportes estándar</li>
+                        <li>Soporte por email</li>
+                        <li>Actualizaciones mensuales</li>
+                    </ul>
+                    <button class="btn btn-secondary" onclick="selectPlan('price_starter', 99)">Seleccionar Plan</button>
+                </div>
+
+                <div class="pricing-card featured">
+                    <h3 class="plan-name">Professional</h3>
+                    <div class="plan-price">$299</div>
+                    <div class="plan-period">por mes</div>
+                    <ul class="plan-features">
+                        <li>Repositorios ilimitados</li>
+                        <li>Análisis avanzado con IA</li>
+                        <li>Reportes personalizados</li>
+                        <li>Conectores empresariales</li>
+                        <li>Soporte prioritario 24/7</li>
+                        <li>API REST completa</li>
+                    </ul>
+                    <button class="btn btn-primary" onclick="selectPlan('price_professional', 299)">Seleccionar Plan</button>
+                </div>
+
+                <div class="pricing-card">
+                    <h3 class="plan-name">Enterprise</h3>
+                    <div class="plan-price">Personalizado</div>
+                    <div class="plan-period">contactar ventas</div>
+                    <ul class="plan-features">
+                        <li>Todo lo de Professional</li>
+                        <li>Instalación on-premise</li>
+                        <li>SLA personalizado</li>
+                        <li>Capacitación del equipo</li>
+                        <li>Consultoría especializada</li>
+                        <li>Desarrollo de features custom</li>
+                    </ul>
+                    <a href="mailto:enterprise@srpk.io" class="btn btn-secondary">Contactar Ventas</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Payment Form -->
+        <section id="payment-form" class="payment-form">
+            <h3 style="margin-bottom: 24px;">Información de Pago</h3>
+            <form id="stripe-payment-form">
+                <div class="form-group">
+                    <label class="form-label" for="email">Correo Electrónico</label>
+                    <input type="email" id="email" class="form-input" placeholder="tu@email.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="name">Nombre Completo</label>
+                    <input type="text" id="name" class="form-input" placeholder="Juan Pérez" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="company">Empresa (opcional)</label>
+                    <input type="text" id="company" class="form-input" placeholder="Mi Empresa S.A.">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Información de Tarjeta</label>
+                    <div id="card-element"></div>
+                    <div id="card-errors" class="payment-errors"></div>
+                </div>
+
+                <button type="submit" id="submit-button" class="btn btn-primary">
+                    <span id="button-text">Procesar Pago</span>
+                    <span id="spinner" class="loading" style="display: none;"></span>
+                </button>
+
+                <p style="margin-top: 16px; text-align: center; color: var(--text-secondary); font-size: 0.875rem;">
+                    Pago seguro procesado por Stripe. Tu información está protegida con encriptación SSL.
+                </p>
+            </form>
+        </section>
     </div>
-  </div>
-  <p style="opacity:.7;margin-top:12px">Pagos gestionados por Stripe.</p>
-</div></body></html>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-links">
+                <a href="https://github.com/Msc-Tecnologia/SRPK">GitHub</a>
+                <a href="https://msc-tecnologia.github.io/SRPK/">Documentación</a>
+                <a href="/terms">Términos de Servicio</a>
+                <a href="/privacy">Política de Privacidad</a>
+                <a href="mailto:support@srpk.io">Soporte</a>
+            </div>
+            <p>&copy; 2024 SRPK Pro. Todos los derechos reservados.</p>
+            <p style="font-size: 0.875rem; margin-top: 8px;">
+                Desarrollado por Msc Tecnología | Pagos seguros con 
+                <img src="https://stripe.com/img/v3/home/twitter.png" alt="Stripe" style="height: 20px; vertical-align: middle; margin-left: 4px;">
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Configuración de Stripe (reemplazar con tu clave pública)
+        const stripe = Stripe('pk_test_XXXXXXXXXXXXXXXXXXXXXX'); // CAMBIAR: Agregar tu clave pública de Stripe
+        const elements = stripe.elements();
+
+        // Estilo personalizado para el elemento de tarjeta
+        const cardStyle = {
+            base: {
+                color: '#ffffff',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                fontSmoothing: 'antialiased',
+                fontSize: '16px',
+                '::placeholder': {
+                    color: '#a1a1aa'
+                }
+            },
+            invalid: {
+                color: '#ef4444',
+                iconColor: '#ef4444'
+            }
+        };
+
+        // Crear elemento de tarjeta
+        const cardElement = elements.create('card', { style: cardStyle });
+        cardElement.mount('#card-element');
+
+        // Manejar errores de validación en tiempo real
+        cardElement.on('change', function(event) {
+            const displayError = document.getElementById('card-errors');
+            if (event.error) {
+                displayError.textContent = event.error.message;
+            } else {
+                displayError.textContent = '';
+            }
+        });
+
+        // Variables globales para el plan seleccionado
+        let selectedPriceId = '';
+        let selectedAmount = 0;
+
+        // Función para seleccionar plan
+        function selectPlan(priceId, amount) {
+            selectedPriceId = priceId;
+            selectedAmount = amount;
+            
+            // Mostrar formulario de pago
+            document.getElementById('payment-form').style.display = 'block';
+            document.getElementById('payment-form').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Manejar envío del formulario
+        const form = document.getElementById('stripe-payment-form');
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            // Deshabilitar botón
+            const submitButton = document.getElementById('submit-button');
+            submitButton.disabled = true;
+            document.getElementById('button-text').style.display = 'none';
+            document.getElementById('spinner').style.display = 'inline-block';
+
+            // Obtener datos del formulario
+            const email = document.getElementById('email').value;
+            const name = document.getElementById('name').value;
+            const company = document.getElementById('company').value;
+
+            try {
+                // Crear token de pago
+                const { token, error } = await stripe.createToken(cardElement, {
+                    name: name,
+                    email: email
+                });
+
+                if (error) {
+                    // Mostrar error
+                    const errorElement = document.getElementById('card-errors');
+                    errorElement.textContent = error.message;
+                    submitButton.disabled = false;
+                    document.getElementById('button-text').style.display = 'inline';
+                    document.getElementById('spinner').style.display = 'none';
+                } else {
+                    // Enviar token al servidor
+                    const response = await fetch('/api/process-payment', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            token: token.id,
+                            priceId: selectedPriceId,
+                            amount: selectedAmount,
+                            email: email,
+                            name: name,
+                            company: company
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Mostrar mensaje de éxito
+                        document.getElementById('success-message').style.display = 'block';
+                        document.getElementById('payment-form').style.display = 'none';
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    } else {
+                        // Mostrar error
+                        const errorElement = document.getElementById('card-errors');
+                        errorElement.textContent = result.error || 'Error al procesar el pago';
+                        submitButton.disabled = false;
+                        document.getElementById('button-text').style.display = 'inline';
+                        document.getElementById('spinner').style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                const errorElement = document.getElementById('card-errors');
+                errorElement.textContent = 'Error de conexión. Por favor, intenta nuevamente.';
+                submitButton.disabled = false;
+                document.getElementById('button-text').style.display = 'inline';
+                document.getElementById('spinner').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -28,7 +28,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/Msc-Tecnologia/SRPK"
 Documentation = "https://msc-tecnologia.github.io/SRPK/"
-Purchasing = "https://tu-dominio/landing/"
+Purchasing = "https://srpk.io/"
 Changelog = "https://github.com/Msc-Tecnologia/SRPK/releases"
 
 [tool.setuptools]

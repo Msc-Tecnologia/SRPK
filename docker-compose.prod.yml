@@ -1,0 +1,48 @@
+version: '3.8'
+
+# Production-specific overrides
+services:
+  payment-api:
+    image: ghcr.io/msc-tecnologia/srpk:production
+    environment:
+      - FLASK_ENV=production
+      - LOG_LEVEL=INFO
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  nginx:
+    volumes:
+      - ./ssl/cert.pem:/etc/nginx/ssl/cert.pem:ro
+      - ./ssl/key.pem:/etc/nginx/ssl/key.pem:ro
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: any
+
+  postgres:
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    environment:
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  redis:
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    deploy:
+      replicas: 1
