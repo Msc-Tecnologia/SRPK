@@ -49,7 +49,7 @@ echo ""
 
 # Create necessary directories
 echo -e "${YELLOW}Creating directories...${NC}"
-mkdir -p ssl logs backups data
+mkdir -p ssl logs backups data downloads
 echo -e "${GREEN}✓ Directories created${NC}"
 echo ""
 
@@ -108,6 +108,38 @@ if [[ ! -f .env ]]; then
         echo -e "${YELLOW}⚠ Stripe keys not provided. Remember to update them in .env${NC}"
     fi
     
+    # Prompt for PayPal keys
+    echo -e "${YELLOW}PayPal Configuration${NC}"
+    echo "Enter your PayPal REST API credentials (https://developer.paypal.com)"
+    read -p "PayPal Mode (sandbox/live) [sandbox]: " PAYPAL_MODE
+    PAYPAL_MODE=${PAYPAL_MODE:-sandbox}
+    read -p "PayPal Client ID: " PAYPAL_CLIENT_ID
+    read -p "PayPal Client Secret: " PAYPAL_CLIENT_SECRET
+
+    if [[ -n "$PAYPAL_CLIENT_ID" ]] && [[ -n "$PAYPAL_CLIENT_SECRET" ]]; then
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/PAYPAL_MODE=.*/PAYPAL_MODE=$PAYPAL_MODE/g" .env || echo "PAYPAL_MODE=$PAYPAL_MODE" >> .env
+            sed -i '' "s/PAYPAL_CLIENT_ID=.*/PAYPAL_CLIENT_ID=$PAYPAL_CLIENT_ID/g" .env || echo "PAYPAL_CLIENT_ID=$PAYPAL_CLIENT_ID" >> .env
+            sed -i '' "s/PAYPAL_CLIENT_SECRET=.*/PAYPAL_CLIENT_SECRET=$PAYPAL_CLIENT_SECRET/g" .env || echo "PAYPAL_CLIENT_SECRET=$PAYPAL_CLIENT_SECRET" >> .env
+        else
+            sed -i "s/PAYPAL_MODE=.*/PAYPAL_MODE=$PAYPAL_MODE/g" .env || echo "PAYPAL_MODE=$PAYPAL_MODE" >> .env
+            sed -i "s/PAYPAL_CLIENT_ID=.*/PAYPAL_CLIENT_ID=$PAYPAL_CLIENT_ID/g" .env || echo "PAYPAL_CLIENT_ID=$PAYPAL_CLIENT_ID" >> .env
+            sed -i "s/PAYPAL_CLIENT_SECRET=.*/PAYPAL_CLIENT_SECRET=$PAYPAL_CLIENT_SECRET/g" .env || echo "PAYPAL_CLIENT_SECRET=$PAYPAL_CLIENT_SECRET" >> .env
+        fi
+        echo -e "${GREEN}✓ PayPal keys configured${NC}"
+    else
+        echo -e "${YELLOW}⚠ PayPal keys not provided. Remember to update them in .env${NC}"
+    fi
+
+    # JWT secret for license tokens
+    echo -e "${YELLOW}JWT Secret for License Tokens${NC}"
+    read -p "Provide JWT secret (leave empty to auto-generate): " JWT_SECRET
+    if [[ -z "$JWT_SECRET" ]]; then
+        JWT_SECRET=$(generate_secret)
+        echo -e "${YELLOW}Generated JWT secret${NC}"
+    fi
+    echo "JWT_SECRET=$JWT_SECRET" >> .env
+
     echo ""
     echo -e "${GREEN}✓ Environment configuration complete${NC}"
 else
