@@ -87,49 +87,22 @@ if [[ ! -f .env ]]; then
     echo -e "${GREEN}✓ Secrets generated${NC}"
     echo ""
     
-    # Prompt for Stripe keys
-    echo -e "${YELLOW}Stripe Configuration${NC}"
-    echo "Please enter your Stripe API keys (get them from https://dashboard.stripe.com/apikeys)"
-    echo ""
-    
-    read -p "Stripe Secret Key (sk_test_...): " STRIPE_SECRET
-    read -p "Stripe Publishable Key (pk_test_...): " STRIPE_PUBLIC
-    
-    if [[ -n "$STRIPE_SECRET" ]] && [[ -n "$STRIPE_PUBLIC" ]]; then
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/sk_test_XXXXXXXXXXXXXXXXXXXXXX/$STRIPE_SECRET/g" .env
-            sed -i '' "s/pk_test_XXXXXXXXXXXXXXXXXXXXXX/$STRIPE_PUBLIC/g" .env
-        else
-            sed -i "s/sk_test_XXXXXXXXXXXXXXXXXXXXXX/$STRIPE_SECRET/g" .env
-            sed -i "s/pk_test_XXXXXXXXXXXXXXXXXXXXXX/$STRIPE_PUBLIC/g" .env
-        fi
-        echo -e "${GREEN}✓ Stripe keys configured${NC}"
-    else
-        echo -e "${YELLOW}⚠ Stripe keys not provided. Remember to update them in .env${NC}"
-    fi
-    
-    # Prompt for PayPal keys
-    echo -e "${YELLOW}PayPal Configuration${NC}"
-    echo "Enter your PayPal REST API credentials (https://developer.paypal.com)"
-    read -p "PayPal Mode (sandbox/live) [sandbox]: " PAYPAL_MODE
-    PAYPAL_MODE=${PAYPAL_MODE:-sandbox}
-    read -p "PayPal Client ID: " PAYPAL_CLIENT_ID
-    read -p "PayPal Client Secret: " PAYPAL_CLIENT_SECRET
+    # Crypto payment configuration
+    echo -e "${YELLOW}Crypto Payments Configuration (ETH/BNB/USDT)${NC}"
+    read -p "Merchant address [0x680c48F49187a2121a25e3F834585a8b82DfdC16]: " MERCHANT_ADDRESS
+    MERCHANT_ADDRESS=${MERCHANT_ADDRESS:-0x680c48F49187a2121a25e3F834585a8b82DfdC16}
+    read -p "Ethereum RPC URL (e.g., https://mainnet.infura.io/v3/KEY): " ETH_RPC_URL
+    read -p "BSC RPC URL (e.g., https://bsc-dataseed.binance.org): " BSC_RPC_URL
+    read -p "Deployed Payment Contract on Ethereum (leave empty if not deployed): " CONTRACT_ADDRESS_ETH
+    read -p "Deployed Payment Contract on BSC (leave empty if not deployed): " CONTRACT_ADDRESS_BSC
 
-    if [[ -n "$PAYPAL_CLIENT_ID" ]] && [[ -n "$PAYPAL_CLIENT_SECRET" ]]; then
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/PAYPAL_MODE=.*/PAYPAL_MODE=$PAYPAL_MODE/g" .env || echo "PAYPAL_MODE=$PAYPAL_MODE" >> .env
-            sed -i '' "s/PAYPAL_CLIENT_ID=.*/PAYPAL_CLIENT_ID=$PAYPAL_CLIENT_ID/g" .env || echo "PAYPAL_CLIENT_ID=$PAYPAL_CLIENT_ID" >> .env
-            sed -i '' "s/PAYPAL_CLIENT_SECRET=.*/PAYPAL_CLIENT_SECRET=$PAYPAL_CLIENT_SECRET/g" .env || echo "PAYPAL_CLIENT_SECRET=$PAYPAL_CLIENT_SECRET" >> .env
-        else
-            sed -i "s/PAYPAL_MODE=.*/PAYPAL_MODE=$PAYPAL_MODE/g" .env || echo "PAYPAL_MODE=$PAYPAL_MODE" >> .env
-            sed -i "s/PAYPAL_CLIENT_ID=.*/PAYPAL_CLIENT_ID=$PAYPAL_CLIENT_ID/g" .env || echo "PAYPAL_CLIENT_ID=$PAYPAL_CLIENT_ID" >> .env
-            sed -i "s/PAYPAL_CLIENT_SECRET=.*/PAYPAL_CLIENT_SECRET=$PAYPAL_CLIENT_SECRET/g" .env || echo "PAYPAL_CLIENT_SECRET=$PAYPAL_CLIENT_SECRET" >> .env
-        fi
-        echo -e "${GREEN}✓ PayPal keys configured${NC}"
-    else
-        echo -e "${YELLOW}⚠ PayPal keys not provided. Remember to update them in .env${NC}"
-    fi
+    {
+        echo "MERCHANT_ADDRESS=$MERCHANT_ADDRESS"
+        [[ -n "$ETH_RPC_URL" ]] && echo "ETH_RPC_URL=$ETH_RPC_URL"
+        [[ -n "$BSC_RPC_URL" ]] && echo "BSC_RPC_URL=$BSC_RPC_URL"
+        [[ -n "$CONTRACT_ADDRESS_ETH" ]] && echo "CONTRACT_ADDRESS_ETH=$CONTRACT_ADDRESS_ETH"
+        [[ -n "$CONTRACT_ADDRESS_BSC" ]] && echo "CONTRACT_ADDRESS_BSC=$CONTRACT_ADDRESS_BSC"
+    } >> .env
 
     # JWT secret for license tokens
     echo -e "${YELLOW}JWT Secret for License Tokens${NC}"
@@ -203,7 +176,7 @@ echo -e "${GREEN}================================================${NC}"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"
 echo "1. Update .env with your production values"
-echo "2. Update landing/index.html with your Stripe public key"
+echo "2. Configure ETH_RPC_URL/BSC_RPC_URL and deploy payment contract"
 echo "3. Configure your domain DNS"
 echo "4. Run: ./deploy.sh staging"
 echo ""

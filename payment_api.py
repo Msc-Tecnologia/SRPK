@@ -1,6 +1,6 @@
 """
-SRPK Pro Payment API
-Handles Stripe payment processing for SRPK Pro licenses
+SRPK Pro Crypto Payment API
+Accepts payments in native ETH/BNB and USDT via smart contract and verifies them.
 """
 import os
 import json
@@ -8,11 +8,9 @@ import logging
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import stripe
-import paypalrestsdk
 from dotenv import load_dotenv
-import paypalrestsdk
 import jwt
+from web3 import Web3
 
 # Load environment variables
 load_dotenv()
@@ -28,458 +26,182 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app, origins=os.getenv('ALLOWED_ORIGINS', '*').split(','))
 
-# Configure Stripe
-stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
-
-# Configure PayPal
-paypalrestsdk.configure({
- cursor/finalizar-despliegue-y-configurar-pagos-y-workflow-0b32
-    "mode": os.getenv('PAYPAL_MODE', 'sandbox'),
-    "client_id": os.getenv('PAYPAL_CLIENT_ID'),
-    "client_secret": os.getenv('PAYPAL_CLIENT_SECRET')
-})
-
-
-    "mode": os.getenv('PAYPAL_MODE', 'sandbox'),  # sandbox or live
-    "client_id": os.getenv('PAYPAL_CLIENT_ID', ''),
-    "client_secret": os.getenv('PAYPAL_CLIENT_SECRET', '')
-})
-
 # JWT Secret for license tokens
 JWT_SECRET = os.getenv('JWT_SECRET', 'change-me-in-production')
 
- main
-# Price IDs mapping
+# Merchant address (recipient)
+MERCHANT_ADDRESS = Web3.to_checksum_address(
+    os.getenv('MERCHANT_ADDRESS', '0x680c48F49187a2121a25e3F834585a8b82DfdC16')
+)
+
+# RPC URLs (set in environment)
+ETH_RPC_URL = os.getenv('ETH_RPC_URL', '')
+BSC_RPC_URL = os.getenv('BSC_RPC_URL', '')
+
+web3_clients = {
+    'ethereum': Web3(Web3.HTTPProvider(ETH_RPC_URL)) if ETH_RPC_URL else None,
+    'bsc': Web3(Web3.HTTPProvider(BSC_RPC_URL)) if BSC_RPC_URL else None,
+}
+
+# Contract deployment addresses (set after deploy)
+CONTRACT_ADDRESS_ETH = os.getenv('CONTRACT_ADDRESS_ETH', '')
+CONTRACT_ADDRESS_BSC = os.getenv('CONTRACT_ADDRESS_BSC', '')
+
+# Token addresses
+USDT_ETH_ADDRESS = os.getenv('USDT_ETH_ADDRESS', '0xdAC17F958D2ee523a2206206994597C13D831ec7')
+USDT_BSC_ADDRESS = os.getenv('USDT_BSC_ADDRESS', '0x55d398326f99059fF775485246999027B3197955')
+
+# Load ABI if available
+ABI_PATH = os.getenv('PAYMENT_CONTRACT_ABI', os.path.join(os.getcwd(), 'build', 'SRPKPayments.json'))
+CONTRACT_ABI = None
+if os.path.exists(ABI_PATH):
+    try:
+        with open(ABI_PATH, 'r') as f:
+            artifact = json.load(f)
+            CONTRACT_ABI = artifact.get('abi') or artifact.get('ABI') or artifact
+    except Exception as e:
+        logger.warning(f"Could not load ABI from {ABI_PATH}: {e}")
+
+
+# Price IDs mapping (USD cents for reference/display)
 PRICE_IDS = {
     'price_starter': {
-        'amount': 9900,  # $99.00 in cents
-        'currency': 'usd',
-        'interval': 'month',
+        'amount_usd_cents': 9900,
         'product_name': 'SRPK Pro Starter'
     },
     'price_professional': {
-        'amount': 29900,  # $299.00 in cents
-        'currency': 'usd',
-        'interval': 'month',
+        'amount_usd_cents': 29900,
         'product_name': 'SRPK Pro Professional'
     }
 }
 
+
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
+
+
+@app.route('/api/crypto/config', methods=['GET'])
+def crypto_config():
+    """Return chain and payment configuration to the frontend."""
+    config = {
+        'merchantAddress': MERCHANT_ADDRESS,
+        'priceIds': PRICE_IDS,
+        'contract': {
+            'abi': CONTRACT_ABI,
+            'ethereum': {
+                'contractAddress': CONTRACT_ADDRESS_ETH,
+                'chainId': 1,
+                'nativeSymbol': 'ETH',
+                'usdt': USDT_ETH_ADDRESS
+            },
+            'bsc': {
+                'contractAddress': CONTRACT_ADDRESS_BSC,
+                'chainId': 56,
+                'nativeSymbol': 'BNB',
+                'usdt': USDT_BSC_ADDRESS
+            }
+        }
+    }
+    return jsonify(config)
+
+
+@app.route('/api/crypto/verify', methods=['POST'])
+def verify_crypto_payment():
+    """Verify a transaction against our payment contract events and issue license."""
+    data = request.json or {}
+    required_fields = ['chain', 'txHash', 'priceId', 'email']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+
+    chain = data['chain']
+    tx_hash = data['txHash']
+    price_id = data['priceId']
+    email = data['email']
+    name = data.get('name', '')
+
+    if price_id not in PRICE_IDS:
+        return jsonify({'success': False, 'error': 'Invalid price ID'}), 400
+
+    if chain not in web3_clients or web3_clients[chain] is None:
+        return jsonify({'success': False, 'error': f'RPC for {chain} not configured on server'}), 500
+
+    w3 = web3_clients[chain]
+    contract_address = CONTRACT_ADDRESS_ETH if chain == 'ethereum' else CONTRACT_ADDRESS_BSC
+
+    if not contract_address:
+        return jsonify({'success': False, 'error': 'Payment contract address not configured'}), 500
+
+    if not CONTRACT_ABI:
+        return jsonify({'success': False, 'error': 'Payment contract ABI not available'}), 500
+
+    try:
+        receipt = w3.eth.get_transaction_receipt(tx_hash)
+    except Exception as e:
+        logger.error(f"Error fetching receipt: {e}")
+        return jsonify({'success': False, 'error': 'Transaction not found yet. Try again shortly.'}), 404
+
+    if receipt.status != 1:
+        return jsonify({'success': False, 'error': 'Transaction failed'}), 400
+
+    contract = w3.eth.contract(address=Web3.to_checksum_address(contract_address), abi=CONTRACT_ABI)
+
+    # Parse PaymentReceived event
+    event_abi = next((e for e in CONTRACT_ABI if e.get('type') == 'event' and e.get('name') == 'PaymentReceived'), None)
+    if not event_abi:
+        return jsonify({'success': False, 'error': 'PaymentReceived event ABI missing'}), 500
+
+    logs_for_contract = [log for log in receipt.logs if log.address.lower() == contract.address.lower()]
+    matched = None
+    for log in logs_for_contract:
+        try:
+            decoded = contract.events.PaymentReceived().process_log(log)
+            matched = decoded
+            break
+        except Exception:
+            continue
+
+    if not matched:
+        return jsonify({'success': False, 'error': 'No matching payment event found in transaction'}), 400
+
+    args = matched['args']
+    payer = args.get('payer')
+    token = args.get('token')
+    amount = args.get('amount')
+    product_id_onchain = args.get('productId')
+
+    if product_id_onchain != price_id:
+        return jsonify({'success': False, 'error': 'Product mismatch'}), 400
+
+    # Basic sanity: ensure tokens routed to merchant via contract
+    if receipt.to and receipt.to.lower() != contract.address.lower():
+        return jsonify({'success': False, 'error': 'Transaction not sent to payment contract'}), 400
+
+    # Issue license
+    product_name = PRICE_IDS[price_id]['product_name']
+    license_key = generate_license_key(payer, tx_hash)
+    send_license_email(email, name or email, license_key, product_name)
+    license_token = generate_license_token(email=email, license_key=license_key, product_name=product_name)
+
     return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.utcnow().isoformat()
+        'success': True,
+        'payer': payer,
+        'token': token,
+        'amount': str(amount),
+        'license_key': license_key,
+        'license_token': license_token
     })
-
-@app.route('/api/process-payment', methods=['POST'])
-def process_payment():
-    """Process Stripe payment for SRPK Pro license"""
-    try:
-        data = request.json
-        
-        # Validate required fields
-        required_fields = ['token', 'priceId', 'email', 'name']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({
-                    'success': False,
-                    'error': f'Missing required field: {field}'
-                }), 400
-        
-        # Validate price ID
-        price_id = data['priceId']
-        if price_id not in PRICE_IDS:
-            return jsonify({
-                'success': False,
-                'error': 'Invalid price ID'
-            }), 400
-        
-        price_info = PRICE_IDS[price_id]
-        
-        # Create or retrieve customer
-        try:
-            # Check if customer exists
-            customers = stripe.Customer.list(email=data['email'], limit=1)
-            
-            if customers.data:
-                customer = customers.data[0]
-                logger.info(f"Retrieved existing customer: {customer.id}")
-            else:
-                # Create new customer
-                customer = stripe.Customer.create(
-                    email=data['email'],
-                    name=data['name'],
-                    source=data['token'],
-                    metadata={
-                        'company': data.get('company', ''),
-                        'product': price_info['product_name']
-                    }
-                )
-                logger.info(f"Created new customer: {customer.id}")
-        
-        except stripe.error.StripeError as e:
-            logger.error(f"Stripe customer error: {str(e)}")
-            return jsonify({
-                'success': False,
-                'error': 'Error creating customer account'
-            }), 400
-        
-        # Create subscription
-        try:
-            subscription = stripe.Subscription.create(
-                customer=customer.id,
-                items=[{
-                    'price': price_id,
-                }],
-                metadata={
-                    'product': price_info['product_name'],
-                    'customer_name': data['name'],
-                    'company': data.get('company', '')
-                }
-            )
-            
-            logger.info(f"Created subscription: {subscription.id}")
-            
-            # Send license key email (implement this based on your email service)
-            license_key = generate_license_key(customer.id, subscription.id)
-            send_license_email(data['email'], data['name'], license_key, price_info['product_name'])
-            license_token = generate_license_token(email=data['email'], license_key=license_key, product_name=price_info['product_name'])
-            
-            return jsonify({
-                'success': True,
-                'subscription_id': subscription.id,
-                'customer_id': customer.id,
-                'license_key': license_key,
-                'license_token': license_token,
-                'message': 'Payment processed successfully. Check your email for license details.'
-            })
-        
-        except stripe.error.CardError as e:
-            logger.error(f"Card error: {str(e)}")
-            return jsonify({
-                'success': False,
-                'error': 'Your card was declined. Please check your card details and try again.'
-            }), 400
-        
-        except stripe.error.StripeError as e:
-            logger.error(f"Stripe subscription error: {str(e)}")
-            return jsonify({
-                'success': False,
-                'error': 'Error processing subscription. Please try again.'
-            }), 400
-    
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'An unexpected error occurred. Please try again later.'
-        }), 500
-
-@app.route('/api/webhook', methods=['POST'])
-def stripe_webhook():
-    """Handle Stripe webhook events"""
-    payload = request.get_data(as_text=True)
-    sig_header = request.headers.get('Stripe-Signature')
-    webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET')
-    
-    try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, webhook_secret
-        )
-    except ValueError:
-        logger.error("Invalid payload")
-        return jsonify({'error': 'Invalid payload'}), 400
-    except stripe.error.SignatureVerificationError:
-        logger.error("Invalid signature")
-        return jsonify({'error': 'Invalid signature'}), 400
-    
-    # Handle the event
-    if event['type'] == 'subscription.created':
-        subscription = event['data']['object']
-        logger.info(f"Subscription created: {subscription['id']}")
-        
-    elif event['type'] == 'subscription.updated':
-        subscription = event['data']['object']
-        logger.info(f"Subscription updated: {subscription['id']}")
-        
-    elif event['type'] == 'subscription.deleted':
-        subscription = event['data']['object']
-        logger.info(f"Subscription cancelled: {subscription['id']}")
-        # Handle license deactivation
-        
-    elif event['type'] == 'invoice.payment_succeeded':
-        invoice = event['data']['object']
-        logger.info(f"Payment succeeded for invoice: {invoice['id']}")
-        
-    elif event['type'] == 'invoice.payment_failed':
-        invoice = event['data']['object']
-        logger.info(f"Payment failed for invoice: {invoice['id']}")
-        # Send payment failure notification
-    
-    return jsonify({'received': True})
- cursor/finalizar-despliegue-y-configurar-pagos-y-workflow-0b32
-@app.route('/api/process-paypal-payment', methods=['POST'])
-def process_paypal_payment():
-    """Process PayPal payment for SRPK Pro license"""
-    try:
-        data = request.json
-        
-        # Validate required fields
-        required_fields = ['paymentId', 'payerId', 'priceId', 'email', 'name']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({
-                    'success': False,
-                    'error': f'Missing required field: {field}'
-                }), 400
-        
-        # Validate price ID
-        price_id = data['priceId']
-        if price_id not in PRICE_IDS:
-            return jsonify({
-                'success': False,
-                'error': 'Invalid price ID'
-            }), 400
-        
-        price_info = PRICE_IDS[price_id]
-        
-        # Execute PayPal payment
-        payment = paypalrestsdk.Payment.find(data['paymentId'])
-        
-        if payment.execute({"payer_id": data['payerId']}):
-            logger.info(f"PayPal payment executed successfully: {payment.id}")
-            
-            # Create customer record
-            try:
-                # Generate license key
-                license_key = generate_license_key(data['email'], payment.id)
-                
-                # Send license email
-                send_license_email(
-                    data['email'], 
-                    data['name'], 
-                    license_key, 
-                    price_info['product_name']
-                )
-                
-                # Store payment record (implement database storage)
-                store_paypal_payment({
-                    'payment_id': payment.id,
-                    'email': data['email'],
-                    'name': data['name'],
-                    'product': price_info['product_name'],
-                    'amount': price_info['amount'],
-                    'license_key': license_key
-                })
-                
-                return jsonify({
-                    'success': True,
-                    'payment_id': payment.id,
-                    'message': 'Payment processed successfully. Check your email for license details.'
-                })
-            
-            except Exception as e:
-                logger.error(f"Error processing PayPal payment: {str(e)}")
-                return jsonify({
-                    'success': False,
-                    'error': 'Error creating license. Please contact support.'
-                }), 500
-        else:
-            logger.error(f"PayPal payment execution failed: {payment.error}")
-            return jsonify({
-                'success': False,
-                'error': 'Payment execution failed. Please try again.'
-            }), 400
-    
-    except Exception as e:
-        logger.error(f"Unexpected PayPal error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'An unexpected error occurred. Please try again later.'
-        }), 500
-
-@app.route('/api/create-paypal-payment', methods=['POST'])
-def create_paypal_payment():
-    """Create PayPal payment for approval"""
-    try:
-        data = request.json
-        
-        # Validate price ID
-        price_id = data.get('priceId')
-        if price_id not in PRICE_IDS:
-            return jsonify({
-                'success': False,
-                'error': 'Invalid price ID'
-            }), 400
-        
-        price_info = PRICE_IDS[price_id]
-        
-        # Create PayPal payment
-        payment = paypalrestsdk.Payment({
-            "intent": "sale",
-            "payer": {
-                "payment_method": "paypal"
-            },
-            "redirect_urls": {
-                "return_url": f"{os.getenv('APP_URL')}/payment/success",
-                "cancel_url": f"{os.getenv('APP_URL')}/payment/cancel"
-=======
-@app.route('/api/paypal/create-payment', methods=['POST'])
-def paypal_create_payment():
-    """Create PayPal payment and return approval URL"""
-    try:
-        data = request.json or {}
-        required_fields = ['priceId', 'email', 'name', 'returnUrl', 'cancelUrl']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
-
-        price_id = data['priceId']
-        if price_id not in PRICE_IDS:
-            return jsonify({'success': False, 'error': 'Invalid price ID'}), 400
-
-        price_info = PRICE_IDS[price_id]
-
-        payment = paypalrestsdk.Payment({
-            "intent": "sale",
-            "payer": {"payment_method": "paypal"},
-            "redirect_urls": {
-                "return_url": data['returnUrl'],
-                "cancel_url": data['cancelUrl']
- main
-            },
-            "transactions": [{
-                "item_list": {
-                    "items": [{
-                        "name": price_info['product_name'],
-                        "sku": price_id,
- cursor/finalizar-despliegue-y-configurar-pagos-y-workflow-0b32
-                        "price": str(price_info['amount'] / 100),
-
- main
-                        "currency": price_info['currency'].upper(),
-                        "quantity": 1
-                    }]
-                },
-                "amount": {
- cursor/finalizar-despliegue-y-configurar-pagos-y-workflow-0b32
-                    "total": str(price_info['amount'] / 100),
-                    "currency": price_info['currency'].upper()
-                },
-                "description": f"{price_info['product_name']} License"
-            }]
-        })
-        
-        if payment.create():
-            logger.info(f"PayPal payment created: {payment.id}")
-            
-            # Find approval URL
-            approval_url = None
-            for link in payment.links:
-                if link.rel == "approval_url":
-                    approval_url = link.href
-                    break
-            
-            return jsonify({
-                'success': True,
-                'paymentId': payment.id,
-                'approvalUrl': approval_url
-            })
-        else:
-            logger.error(f"PayPal payment creation failed: {payment.error}")
-            return jsonify({
-                'success': False,
-                'error': 'Failed to create payment. Please try again.'
-            }), 400
-    
-    except Exception as e:
-        logger.error(f"Unexpected error creating PayPal payment: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'An unexpected error occurred. Please try again later.'
-        }), 500
-
-def store_paypal_payment(payment_data):
-    """Store PayPal payment record in database"""
-    # This is a placeholder - implement based on your database schema
-    logger.info(f"Would store PayPal payment: {payment_data}")
-    # Example implementation:
-    # db.session.add(PayPalPayment(**payment_data))
-    # db.session.commit()
-
-                    "total": f"{price_info['amount'] / 100:.2f}",
-                    "currency": price_info['currency'].upper()
-                },
-                "description": f"Subscription to {price_info['product_name']}"
-            }]
-        })
-
-        if payment.create():
-            approval_url = next((link.href for link in payment.links if link.rel == "approval_url"), None)
-            return jsonify({
-                'success': True,
-                'payment_id': payment.id,
-                'approval_url': approval_url
-            })
-        else:
-            logger.error(f"PayPal create payment error: {payment.error}")
-            return jsonify({'success': False, 'error': 'Error creating PayPal payment'}), 400
-
-    except Exception as e:
-        logger.error(f"Unexpected error (PayPal create): {str(e)}")
-        return jsonify({'success': False, 'error': 'Unexpected error'}), 500
-
-
-@app.route('/api/paypal/execute-payment', methods=['POST'])
-def paypal_execute_payment():
-    """Execute PayPal payment after approval and issue license"""
-    try:
-        data = request.json or {}
-        required_fields = ['paymentId', 'PayerID', 'priceId', 'email', 'name']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
-
-        payment = paypalrestsdk.Payment.find(data['paymentId'])
-        if payment.execute({"payer_id": data['PayerID']}):
-            price_info = PRICE_IDS.get(data['priceId'])
-            if not price_info:
-                return jsonify({'success': False, 'error': 'Invalid price ID'}), 400
-
-            # Generate license and token
-            customer_id = payment.payer.payer_info.payer_id if hasattr(payment, 'payer') else data['email']
-            subscription_id = payment.id
-            license_key = generate_license_key(customer_id, subscription_id)
-            send_license_email(data['email'], data['name'], license_key, price_info['product_name'])
-            license_token = generate_license_token(email=data['email'], license_key=license_key, product_name=price_info['product_name'])
-
-            return jsonify({
-                'success': True,
-                'payment_id': payment.id,
-                'license_key': license_key,
-                'license_token': license_token,
-                'message': 'Payment processed successfully. Check your email for license details.'
-            })
-        else:
-            logger.error(f"PayPal execute error: {payment.error}")
-            return jsonify({'success': False, 'error': 'Error executing PayPal payment'}), 400
-
-    except Exception as e:
-        logger.error(f"Unexpected error (PayPal execute): {str(e)}")
-        return jsonify({'success': False, 'error': 'Unexpected error'}), 500
 
 
 def generate_license_token(email: str, license_key: str, product_name: str) -> str:
-    """Generate a signed JWT token representing the license"""
     payload = {
         'sub': email,
         'lk': license_key,
         'product': product_name,
         'iat': datetime.utcnow().timestamp(),
         'nbf': datetime.utcnow().timestamp(),
-        'exp': int(datetime.utcnow().timestamp()) + 60 * 60 * 24 * 30  # 30 days
+        'exp': int(datetime.utcnow().timestamp()) + 60 * 60 * 24 * 30
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
     if isinstance(token, bytes):
@@ -489,7 +211,6 @@ def generate_license_token(email: str, license_key: str, product_name: str) -> s
 
 @app.route('/api/licenses/verify', methods=['GET'])
 def verify_license():
-    """Verify license token validity"""
     token = request.args.get('token') or _extract_bearer_token(request.headers.get('Authorization', ''))
     if not token:
         return jsonify({'valid': False, 'error': 'Missing token'}), 400
@@ -519,7 +240,6 @@ ALLOWED_DOWNLOADS = {
 
 @app.route('/api/downloads', methods=['GET'])
 def secure_download():
-    """Serve product downloads if token is valid and file allowed"""
     token = request.args.get('token') or _extract_bearer_token(request.headers.get('Authorization', ''))
     filename = request.args.get('file')
     if not token or not filename:
@@ -536,49 +256,22 @@ def secure_download():
         return jsonify({'success': False, 'error': 'Token expired'}), 401
     except jwt.InvalidTokenError:
         return jsonify({'success': False, 'error': 'Invalid token'}), 401
- main
+
 
 def generate_license_key(customer_id, subscription_id):
-    """Generate a unique license key"""
     import hashlib
     import time
-    
-    # Create a unique string based on customer and subscription
     unique_string = f"{customer_id}-{subscription_id}-{time.time()}"
-    
-    # Generate hash
-    hash_object = hashlib.sha256(unique_string.encode())
-    hex_dig = hash_object.hexdigest()
-    
-    # Format as license key (e.g., XXXX-XXXX-XXXX-XXXX)
+    hex_dig = hashlib.sha256(unique_string.encode()).hexdigest()
     license_key = '-'.join([hex_dig[i:i+4].upper() for i in range(0, 16, 4)])
-    
     return license_key
 
+
 def send_license_email(email, name, license_key, product_name):
-    """Send license key via email"""
-    # This is a placeholder - implement based on your email service
-    # Options: SendGrid, AWS SES, Mailgun, etc.
     logger.info(f"Would send license email to {email}")
     logger.info(f"License Key: {license_key}")
     logger.info(f"Product: {product_name}")
-    
-    # Example implementation with SendGrid:
-    # import sendgrid
-    # sg = sendgrid.SendGridAPIClient(api_key=os.getenv('SENDGRID_API_KEY'))
-    # message = Mail(
-    #     from_email='licenses@srpk.io',
-    #     to_emails=email,
-    #     subject=f'Your {product_name} License',
-    #     html_content=f'''
-    #     <h2>Welcome to {product_name}!</h2>
-    #     <p>Hi {name},</p>
-    #     <p>Thank you for your purchase. Your license key is:</p>
-    #     <h3>{license_key}</h3>
-    #     <p>You can activate your license at: https://app.srpk.io/activate</p>
-    #     '''
-    # )
-    # sg.send(message)
+
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))

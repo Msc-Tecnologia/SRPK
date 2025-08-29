@@ -6,8 +6,8 @@
     <title>SRPK Pro - Análisis Empresarial de Código Python</title>
     <meta name="description" content="SRPK Pro - Herramienta profesional para análisis semántico de repositorios Python con reportes avanzados y soporte empresarial.">
     
-    <!-- Stripe JS -->
-    <script src="https://js.stripe.com/v3/"></script>
+    <!-- Ethers.js for Web3 -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
     
     <style>
         * {
@@ -456,7 +456,7 @@
         <!-- Payment Form -->
         <section id="payment-form" class="payment-form">
             <h3 style="margin-bottom: 24px;">Información de Pago</h3>
-            <form id="stripe-payment-form">
+            <form id="crypto-payment-form">
                 <div class="form-group">
                     <label class="form-label" for="email">Correo Electrónico</label>
                     <input type="email" id="email" class="form-input" placeholder="tu@email.com" required>
@@ -473,18 +473,34 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Información de Tarjeta</label>
-                    <div id="card-element"></div>
-                    <div id="card-errors" class="payment-errors"></div>
+                    <label class="form-label" for="chain">Red</label>
+                    <select id="chain" class="form-input">
+                        <option value="ethereum">Ethereum (ETH/USDT)</option>
+                        <option value="bsc">BNB Smart Chain (BNB/USDT)</option>
+                    </select>
                 </div>
 
+                <div class="form-group">
+                    <label class="form-label" for="token">Moneda</label>
+                    <select id="token" class="form-input">
+                        <option value="native">ETH / BNB (nativo)</option>
+                        <option value="usdt">USDT (ERC20/BEP20)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="amount">Monto a pagar</label>
+                    <input type="text" id="amount" class="form-input" placeholder="Ej: 0.03 (ETH/BNB) o 99 (USDT)" required>
+                </div>
+
+                <button type="button" id="connect-button" class="btn btn-secondary" style="margin-bottom: 12px;">Conectar Wallet</button>
                 <button type="submit" id="submit-button" class="btn btn-primary">
-                    <span id="button-text">Procesar Pago</span>
+                    <span id="button-text">Pagar con Cripto</span>
                     <span id="spinner" class="loading" style="display: none;"></span>
                 </button>
 
                 <p style="margin-top: 16px; text-align: center; color: var(--text-secondary); font-size: 0.875rem;">
-                    Pago seguro procesado por Stripe. Tu información está protegida con encriptación SSL.
+                    Pagos con Web3 (ETH/BNB/USDT). Se genera una licencia al confirmar la transacción.
                 </p>
             </form>
         </section>
@@ -509,122 +525,112 @@
     </footer>
 
     <script>
-        // Configuración de Stripe (reemplazar con tu clave pública)
-        const stripe = Stripe('pk_test_XXXXXXXXXXXXXXXXXXXXXX'); // CAMBIAR: Agregar tu clave pública de Stripe
-        const elements = stripe.elements();
-
-        // Estilo personalizado para el elemento de tarjeta
-        const cardStyle = {
-            base: {
-                color: '#ffffff',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                fontSmoothing: 'antialiased',
-                fontSize: '16px',
-                '::placeholder': {
-                    color: '#a1a1aa'
-                }
-            },
-            invalid: {
-                color: '#ef4444',
-                iconColor: '#ef4444'
-            }
-        };
-
-        // Crear elemento de tarjeta
-        const cardElement = elements.create('card', { style: cardStyle });
-        cardElement.mount('#card-element');
-
-        // Manejar errores de validación en tiempo real
-        cardElement.on('change', function(event) {
-            const displayError = document.getElementById('card-errors');
-            if (event.error) {
-                displayError.textContent = event.error.message;
-            } else {
-                displayError.textContent = '';
-            }
-        });
-
-        // Variables globales para el plan seleccionado
         let selectedPriceId = '';
-        let selectedAmount = 0;
+        let provider, signer, config;
 
-        // Función para seleccionar plan
-        function selectPlan(priceId, amount) {
+        async function fetchConfig() {
+            const res = await fetch('/api/crypto/config');
+            config = await res.json();
+        }
+        fetchConfig();
+
+        function selectPlan(priceId, amountUsd) {
             selectedPriceId = priceId;
-            selectedAmount = amount;
-            
-            // Mostrar formulario de pago
             document.getElementById('payment-form').style.display = 'block';
             document.getElementById('payment-form').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Manejar envío del formulario
-        const form = document.getElementById('stripe-payment-form');
-        form.addEventListener('submit', async function(event) {
-            event.preventDefault();
+        async function connect() {
+            if (!window.ethereum) {
+                alert('Instala MetaMask para continuar');
+                return;
+            }
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send('eth_requestAccounts', []);
+            signer = provider.getSigner();
+        }
 
-            // Deshabilitar botón
+        document.getElementById('connect-button').addEventListener('click', connect);
+
+        const form = document.getElementById('crypto-payment-form');
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
             const submitButton = document.getElementById('submit-button');
             submitButton.disabled = true;
             document.getElementById('button-text').style.display = 'none';
             document.getElementById('spinner').style.display = 'inline-block';
 
-            // Obtener datos del formulario
-            const email = document.getElementById('email').value;
-            const name = document.getElementById('name').value;
-            const company = document.getElementById('company').value;
-
             try {
-                // Crear token de pago
-                const { token, error } = await stripe.createToken(cardElement, {
-                    name: name,
-                    email: email
-                });
+                const email = document.getElementById('email').value;
+                const name = document.getElementById('name').value;
+                const chain = document.getElementById('chain').value;
+                const tokenSel = document.getElementById('token').value;
+                const amountInput = document.getElementById('amount').value.trim();
 
-                if (error) {
-                    // Mostrar error
-                    const errorElement = document.getElementById('card-errors');
-                    errorElement.textContent = error.message;
-                    submitButton.disabled = false;
-                    document.getElementById('button-text').style.display = 'inline';
-                    document.getElementById('spinner').style.display = 'none';
-                } else {
-                    // Enviar token al servidor
-                    const response = await fetch('/api/process-payment', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            token: token.id,
-                            priceId: selectedPriceId,
-                            amount: selectedAmount,
-                            email: email,
-                            name: name,
-                            company: company
-                        })
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        // Mostrar mensaje de éxito
-                        document.getElementById('success-message').style.display = 'block';
-                        document.getElementById('payment-form').style.display = 'none';
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    } else {
-                        // Mostrar error
-                        const errorElement = document.getElementById('card-errors');
-                        errorElement.textContent = result.error || 'Error al procesar el pago';
-                        submitButton.disabled = false;
-                        document.getElementById('button-text').style.display = 'inline';
-                        document.getElementById('spinner').style.display = 'none';
-                    }
+                if (!config || !config.contract || !config.contract[chain]) {
+                    throw new Error('Configuración de contrato no disponible');
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                const errorElement = document.getElementById('card-errors');
-                errorElement.textContent = 'Error de conexión. Por favor, intenta nuevamente.';
+
+                const chainCfg = config.contract[chain];
+                const contractAddress = chainCfg.contractAddress;
+                const abi = config.contract.abi;
+                if (!contractAddress || !abi) {
+                    throw new Error('Contrato no configurado en el servidor');
+                }
+
+                // Switch chain if necessary
+                const targetChainIdHex = '0x' + chainCfg.chainId.toString(16);
+                const network = await provider.getNetwork();
+                if ('0x' + network.chainId.toString(16) !== targetChainIdHex) {
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: targetChainIdHex }]
+                    }).catch(() => { throw new Error('Cambia la red en tu wallet'); });
+                }
+
+                const contract = new ethers.Contract(contractAddress, abi, signer);
+                const productId = selectedPriceId || 'price_starter';
+                const emailHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(email));
+
+                let tx;
+                if (tokenSel === 'native') {
+                    const value = ethers.utils.parseUnits(amountInput, 18); // user inputs in ETH/BNB units
+                    tx = await contract.payNative(productId, emailHash, { value });
+                } else {
+                    const usdt = chainCfg.usdt;
+                    const usdtContract = new ethers.Contract(usdt, [
+                        'function approve(address spender, uint256 amount) external returns (bool)'
+                    ], signer);
+                    const amount = ethers.utils.parseUnits(amountInput, 6); // USDT 6 decimals
+                    await (await usdtContract.approve(contractAddress, amount)).wait();
+                    tx = await contract.payERC20(usdt, amount, productId, emailHash);
+                }
+
+                const receipt = await tx.wait();
+
+                // Verify with backend and issue license
+                const resp = await fetch('/api/crypto/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chain,
+                        txHash: receipt.transactionHash,
+                        priceId: productId,
+                        email,
+                        name
+                    })
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    document.getElementById('success-message').style.display = 'block';
+                    document.getElementById('payment-form').style.display = 'none';
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    alert(result.error || 'No se pudo verificar el pago');
+                }
+            } catch (err) {
+                alert(err.message || 'Error realizando el pago');
+            } finally {
                 submitButton.disabled = false;
                 document.getElementById('button-text').style.display = 'inline';
                 document.getElementById('spinner').style.display = 'none';
