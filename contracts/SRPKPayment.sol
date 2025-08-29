@@ -9,6 +9,9 @@ contract SRPKPayment is Ownable, ReentrancyGuard {
     // Payment recipient address
     address public paymentRecipient = 0x680c48F49187a2121a25e3F834585a8b82DfdC16;
     
+    // Webhook contract address
+    address public webhookContract;
+    
     // Supported tokens
     address public constant USDT_ADDRESS = 0x55d398326f99059fF775485246999027B3197955; // BSC USDT
     address public constant ETH_ADDRESS = 0x2170Ed0880ac9A755fd29B2688956BD959F933F8; // BSC ETH
@@ -66,6 +69,11 @@ contract SRPKPayment is Ownable, ReentrancyGuard {
         string licenseKey,
         address indexed buyer
     );
+    
+    // Webhook interface
+    interface IWebhookContract {
+        function triggerWebhooks(uint8 eventType, bytes memory data) external;
+    }
     
     // Modifiers
     modifier validProduct(string memory productType) {
@@ -180,6 +188,19 @@ contract SRPKPayment is Ownable, ReentrancyGuard {
             licenseKey,
             expiryTime
         );
+        
+        // Trigger webhook if contract is set
+        if (webhookContract != address(0)) {
+            bytes memory webhookData = abi.encode(
+                buyer,
+                email,
+                productType,
+                paymentToken,
+                amount,
+                licenseKey
+            );
+            IWebhookContract(webhookContract).triggerWebhooks(1, webhookData); // 1 = LicenseCreated
+        }
     }
     
     // Internal function to record payment
@@ -202,6 +223,18 @@ contract SRPKPayment is Ownable, ReentrancyGuard {
         userPayments[buyer].push(newPayment);
         
         emit PaymentReceived(buyer, productType, amount, paymentToken);
+        
+        // Trigger webhook for payment received
+        if (webhookContract != address(0)) {
+            bytes memory webhookData = abi.encode(
+                buyer,
+                productType,
+                amount,
+                paymentToken,
+                block.timestamp
+            );
+            IWebhookContract(webhookContract).triggerWebhooks(0, webhookData); // 0 = PaymentReceived
+        }
     }
     
     // Generate unique license key
@@ -257,6 +290,16 @@ contract SRPKPayment is Ownable, ReentrancyGuard {
         License storage license = licensesByKey[licenseKey];
         license.isActive = false;
         emit LicenseRevoked(licenseKey, license.buyer);
+        
+        // Trigger webhook for license revoked
+        if (webhookContract != address(0)) {
+            bytes memory webhookData = abi.encode(licenseKey, license.buyer);
+            IWebhookContract(webhookContract).triggerWebhooks(3, webhookData); // 3 = LicenseRevoked
+        }
+    }
+    
+    function setWebhookContract(address _webhookContract) external onlyOwner {
+        webhookContract = _webhookContract;
     }
     
     // Emergency withdrawal (only owner)
