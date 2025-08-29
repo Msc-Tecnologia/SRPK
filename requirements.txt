@@ -30,10 +30,10 @@ mkdocs-material>=9
 # Payment API
 flask>=3.0
 flask-cors>=4.0
-stripe>=7.0
-paypalrestsdk>=1.13.1
 python-dotenv>=1.0
 gunicorn>=21.0
+web3>=6.11.0
+eth-account>=0.10.0
 
 # Email and Cloud services
 sendgrid>=6.10
