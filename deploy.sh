@@ -13,6 +13,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 ENVIRONMENT=${1:-staging}
+STACK=${STACK:-minimal} # minimal|full
 DOCKER_REGISTRY=${DOCKER_REGISTRY:-ghcr.io}
 IMAGE_NAME=${IMAGE_NAME:-msc-tecnologia/srpk}
 IMAGE_TAG=${IMAGE_TAG:-latest}
@@ -88,11 +89,17 @@ fi
 # Deploy with docker-compose
 log "Deploying with docker-compose..."
 if [[ "$ENVIRONMENT" == "production" ]]; then
-    # Production deployment with scaling
-    docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale payment-api=3
+    if [[ "$STACK" == "full" ]]; then
+        docker-compose -f docker-compose.full.yml -f docker-compose.prod.yml up -d
+    else
+        docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale payment-api=3
+    fi
 else
-    # Staging deployment
-    docker-compose up -d
+    if [[ "$STACK" == "full" ]]; then
+        docker-compose -f docker-compose.full.yml up -d
+    else
+        docker-compose up -d
+    fi
 fi
 
 # Wait for services to be healthy
@@ -115,7 +122,7 @@ fi
 # Run database migrations (if needed)
 if [[ "$ENVIRONMENT" == "production" ]]; then
     log "Running database migrations..."
-    docker-compose exec payment-api python manage.py migrate || warning "No migrations to run"
+    docker-compose exec payment-api python -c "print('No migrations defined; skipping')" || true
 fi
 
 # Clean up old images

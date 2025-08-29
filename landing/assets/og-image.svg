@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4e72ff"/>
+      <stop offset="100%" stop-color="#667eea"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g fill="#ffffff">
+    <text x="80" y="200" font-family="Segoe UI, Roboto, Arial" font-weight="800" font-size="92">SRPK Pro</text>
+    <text x="80" y="300" font-family="Segoe UI, Roboto, Arial" font-weight="600" font-size="42" opacity="0.95">Análisis Empresarial de Código Python</text>
+    <text x="80" y="360" font-family="Segoe UI, Roboto, Arial" font-weight="400" font-size="28" opacity="0.9">Reportes avanzados, licencias, seguridad y soporte empresarial</text>
+  </g>
+</svg>

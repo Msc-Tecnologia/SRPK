@@ -1,14 +1,10 @@
 # Landing Page Dockerfile
 FROM nginx:alpine
 
-# Install Node.js for building assets
-RUN apk add --no-cache nodejs npm
-
-# Copy landing page files
+# Copy landing page files (Spanish landing page and assets)
 COPY landing/ /usr/share/nginx/html/
-COPY index.html /usr/share/nginx/html/
 
-# Copy nginx configuration
+# Copy nginx configuration (dev by default; prod overrides via volume)
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Create custom error pages
