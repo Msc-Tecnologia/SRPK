@@ -1,8 +1,83 @@
 version: '3.8'
 
 services:
-  srpk:
-    build: .
+  # Payment API Service
+  payment-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: srpk-payment:latest
+    container_name: srpk-payment-api
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - srpk-network
+
+  # Nginx Web Server for Landing Page
+  nginx:
+    image: nginx:alpine
+    container_name: srpk-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./landing:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - payment-api
+    restart: unless-stopped
+    networks:
+      - srpk-network
+
+  # PostgreSQL Database (optional, for storing licenses)
+  postgres:
+    image: postgres:15-alpine
+    container_name: srpk-postgres
+    environment:
+      - POSTGRES_USER=${DB_USER:-srpk}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-secure_password}
+      - POSTGRES_DB=${DB_NAME:-srpk_licenses}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - srpk-network
+
+  # Redis Cache (optional, for session management)
+  redis:
+    image: redis:7-alpine
+    container_name: srpk-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - srpk-network
+
+  # SRPK Analyzer Service
+  srpk-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: srpk:3.1
     container_name: srpk-analyzer
     volumes:
@@ -10,4 +85,13 @@ services:
       - ./output:/app/output
     environment:
       - PYTHONUNBUFFERED=1
-    command: /app/test_project
+    command: python srpk_v3_1.py /app/test_project
+    networks:
+      - srpk-network
+
+volumes:
+  postgres_data:
+
+networks:
+  srpk-network:
+    driver: bridge
