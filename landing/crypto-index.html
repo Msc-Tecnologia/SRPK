@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRPK Pro - Análisis Empresarial de Código Python</title>
+    <meta name="description" content="SRPK Pro - Herramienta profesional para análisis semántico de repositorios Python con reportes avanzados y pagos en criptomonedas.">
+    
+    <!-- Web3 Modal -->
+    <script src="https://unpkg.com/@walletconnect/web3modal@2.7.1/dist/index.umd.js"></script>
+    <script src="https://unpkg.com/web3@1.10.0/dist/web3.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #4e72ff;
+            --primary-dark: #3859e6;
+            --secondary: #10b981;
+            --dark: #0b0b0c;
+            --card-bg: #141416;
+            --border: #232327;
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --gradient: linear-gradient(135deg, #4e72ff 0%, #667eea 100%);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--dark);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Header */
+        header {
+            padding: 48px 0;
+            text-align: center;
+            background: var(--gradient);
+            margin-bottom: 48px;
+        }
+
+        .logo {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 16px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .tagline {
+            font-size: 1.25rem;
+            opacity: 0.95;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .crypto-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 16px;
+            border-radius: 24px;
+            margin-top: 16px;
+            font-size: 0.9rem;
+        }
+
+        .crypto-badge svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Features Section */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin-bottom: 48px;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 32px rgba(78, 114, 255, 0.1);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            font-size: 24px;
+        }
+
+        .feature-title {
+            font-size: 1.25rem;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .feature-description {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Pricing Section */
+        .pricing {
+            margin-bottom: 48px;
+        }
+
+        .pricing-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .pricing-title {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .pricing-subtitle {
+            color: var(--text-secondary);
+            font-size: 1.125rem;
+        }
+
+        .pricing-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 32px;
+            margin-bottom: 32px;
+        }
+
+        .pricing-card {
+            background: var(--card-bg);
+            border: 2px solid var(--border);
+            border-radius: 24px;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .pricing-card.featured {
+            border-color: var(--primary);
+            transform: scale(1.05);
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--primary);
+        }
+
+        .plan-name {
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        .plan-price {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .plan-period {
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+
+        .plan-features {
+            list-style: none;
+            margin-bottom: 32px;
+        }
+
+        .plan-features li {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .plan-features li:last-child {
+            border-bottom: none;
+        }
+
+        .plan-features .check {
+            color: var(--success);
+            font-size: 1.2rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background: var(--gradient);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(78, 114, 255, 0.3);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Crypto Payment Section */
+        .crypto-payment {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 48px;
+            display: none;
+        }
+
+        .payment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .payment-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .close-payment {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-payment:hover {
+            color: var(--text-primary);
+        }
+
+        .token-selector {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .token-option {
+            background: var(--dark);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .token-option:hover {
+            border-color: var(--primary);
+        }
+
+        .token-option.selected {
+            border-color: var(--primary);
+            background: rgba(78, 114, 255, 0.1);
+        }
+
+        .token-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 8px;
+        }
+
+        .token-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .token-network {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .payment-info {
+            background: var(--dark);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .payment-address {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .address-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 4px;
+        }
+
+        .address-value {
+            font-family: monospace;
+            font-size: 0.875rem;
+            word-break: break-all;
+        }
+
+        .copy-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .payment-amount {
+            margin-bottom: 16px;
+        }
+
+        .amount-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 4px;
+        }
+
+        .amount-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .wallet-connect {
+            width: 100%;
+            margin-bottom: 16px;
+        }
+
+        .payment-status {
+            text-align: center;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .payment-status.success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .payment-status.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+
+        .payment-status.pending {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--warning);
+            color: var(--warning);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .payment-instructions {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--warning);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .payment-instructions h4 {
+            color: var(--warning);
+            margin-bottom: 12px;
+        }
+
+        .payment-instructions ol {
+            margin-left: 20px;
+            color: var(--text-secondary);
+        }
+
+        .payment-instructions li {
+            margin-bottom: 8px;
+        }
+
+        /* Success Message */
+        #success-message {
+            display: none;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid var(--success);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        #success-message h3 {
+            color: var(--success);
+            margin-bottom: 16px;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 48px 0;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 24px;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .pricing-cards {
+                grid-template-columns: 1fr;
+            }
+            
+            .token-selector {
+                grid-template-columns: 1fr;
+            }
+            
+            .pricing-card.featured {
+                transform: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1 class="logo">SRPK Pro</h1>
+            <p class="tagline">Análisis semántico avanzado de repositorios Python con IA para equipos empresariales</p>
+            <div class="crypto-badge">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
+                </svg>
+                Pagos con Criptomonedas
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Features Section -->
+        <section class="features">
+            <div class="feature-card">
+                <div class="feature-icon">🔍</div>
+                <h3 class="feature-title">Análisis Semántico</h3>
+                <p class="feature-description">Motor de IA avanzado que comprende el contexto y la estructura de tu código Python</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3 class="feature-title">Reportes Empresariales</h3>
+                <p class="feature-description">Dashboards interactivos con métricas de calidad, complejidad y mantenibilidad</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🚀</div>
+                <h3 class="feature-title">Rendimiento Extremo</h3>
+                <p class="feature-description">Procesamiento paralelo optimizado para repositorios de cualquier tamaño</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔐</div>
+                <h3 class="feature-title">Seguridad Total</h3>
+                <p class="feature-description">Análisis local sin envío de código a servidores externos</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🤝</div>
+                <h3 class="feature-title">Integración CI/CD</h3>
+                <p class="feature-description">Compatible con GitHub Actions, GitLab CI, Jenkins y más</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💎</div>
+                <h3 class="feature-title">Pagos en Crypto</h3>
+                <p class="feature-description">Acepta BNB, USDT y ETH en Binance Smart Chain</p>
+            </div>
+        </section>
+
+        <!-- Pricing Section -->
+        <section class="pricing">
+            <div class="pricing-header">
+                <h2 class="pricing-title">Planes y Precios</h2>
+                <p class="pricing-subtitle">Elige el plan que mejor se adapte a tu equipo</p>
+            </div>
+
+            <div class="pricing-cards">
+                <div class="pricing-card">
+                    <h3 class="plan-name">Starter</h3>
+                    <div class="plan-price">$99</div>
+                    <div class="plan-period">por mes</div>
+                    <ul class="plan-features">
+                        <li><span class="check">✓</span> Hasta 5 repositorios</li>
+                        <li><span class="check">✓</span> Análisis ilimitados</li>
+                        <li><span class="check">✓</span> Reportes básicos</li>
+                        <li><span class="check">✓</span> Soporte por email</li>
+                        <li><span class="check">✓</span> API REST básica</li>
+                    </ul>
+                    <button class="btn btn-primary" onclick="selectPlan('starter', 99)">
+                        Comenzar Ahora
+                    </button>
+                </div>
+
+                <div class="pricing-card featured">
+                    <h3 class="plan-name">Professional</h3>
+                    <div class="plan-price">$299</div>
+                    <div class="plan-period">por mes</div>
+                    <ul class="plan-features">
+                        <li><span class="check">✓</span> Repositorios ilimitados</li>
+                        <li><span class="check">✓</span> Análisis en tiempo real</li>
+                        <li><span class="check">✓</span> Reportes avanzados</li>
+                        <li><span class="check">✓</span> Soporte prioritario 24/7</li>
+                        <li><span class="check">✓</span> API REST completa</li>
+                        <li><span class="check">✓</span> Integraciones CI/CD</li>
+                        <li><span class="check">✓</span> Análisis de seguridad</li>
+                    </ul>
+                    <button class="btn btn-primary" onclick="selectPlan('professional', 299)">
+                        Comenzar Ahora
+                    </button>
+                </div>
+
+                <div class="pricing-card">
+                    <h3 class="plan-name">Enterprise</h3>
+                    <div class="plan-price">Personalizado</div>
+                    <div class="plan-period">contactar ventas</div>
+                    <ul class="plan-features">
+                        <li><span class="check">✓</span> Todo de Professional</li>
+                        <li><span class="check">✓</span> Instalación on-premise</li>
+                        <li><span class="check">✓</span> SLA personalizado</li>
+                        <li><span class="check">✓</span> Soporte dedicado</li>
+                        <li><span class="check">✓</span> Formación para equipos</li>
+                        <li><span class="check">✓</span> Personalización completa</li>
+                    </ul>
+                    <a href="mailto:enterprise@srpk.io" class="btn btn-secondary">Contactar Ventas</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Crypto Payment Form -->
+        <section id="crypto-payment" class="crypto-payment">
+            <div class="payment-header">
+                <h3 class="payment-title">Pago con Criptomonedas</h3>
+                <button class="close-payment" onclick="closePayment()">×</button>
+            </div>
+
+            <div class="payment-instructions">
+                <h4>📋 Instrucciones de Pago</h4>
+                <ol>
+                    <li>Selecciona la criptomoneda con la que deseas pagar</li>
+                    <li>Ingresa tu email y nombre para la licencia</li>
+                    <li>Conecta tu wallet o envía manualmente a la dirección indicada</li>
+                    <li>Confirma la transacción y espera la verificación</li>
+                </ol>
+            </div>
+
+            <form id="payment-form">
+                <div class="form-group">
+                    <label class="form-label" for="email">Correo Electrónico</label>
+                    <input type="email" id="email" class="form-input" placeholder="tu@email.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="name">Nombre Completo</label>
+                    <input type="text" id="name" class="form-input" placeholder="Juan Pérez" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Selecciona Token de Pago</label>
+                    <div class="token-selector">
+                        <div class="token-option selected" data-token="BNB" onclick="selectToken('BNB')">
+                            <img src="https://cryptologos.cc/logos/bnb-bnb-logo.png" alt="BNB" class="token-icon">
+                            <div class="token-name">BNB</div>
+                            <div class="token-network">BSC Native</div>
+                        </div>
+                        <div class="token-option" data-token="USDT" onclick="selectToken('USDT')">
+                            <img src="https://cryptologos.cc/logos/tether-usdt-logo.png" alt="USDT" class="token-icon">
+                            <div class="token-name">USDT</div>
+                            <div class="token-network">BEP-20</div>
+                        </div>
+                        <div class="token-option" data-token="ETH" onclick="selectToken('ETH')">
+                            <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="ETH" class="token-icon">
+                            <div class="token-name">ETH</div>
+                            <div class="token-network">BEP-20</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="payment-info">
+                    <div class="payment-address">
+                        <div>
+                            <div class="address-label">Dirección de Pago (BSC)</div>
+                            <div class="address-value" id="payment-address">0x680c48F49187a2121a25e3F834585a8b82DfdC16</div>
+                        </div>
+                        <button type="button" class="copy-btn" onclick="copyAddress()">Copiar</button>
+                    </div>
+                    <div class="payment-amount">
+                        <div class="amount-label">Monto a Pagar</div>
+                        <div class="amount-value" id="payment-amount">Calculando...</div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-primary wallet-connect" onclick="connectWallet()">
+                    <span id="connect-text">Conectar Wallet</span>
+                    <span id="connect-spinner" class="loading" style="display: none;"></span>
+                </button>
+
+                <div id="payment-status" class="payment-status"></div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%;" disabled id="verify-button">
+                    <span id="verify-text">Verificar Pago</span>
+                    <span id="verify-spinner" class="loading" style="display: none;"></span>
+                </button>
+            </form>
+        </section>
+
+        <!-- Success Message -->
+        <div id="success-message">
+            <h3>¡Pago Exitoso!</h3>
+            <p>Tu pago ha sido verificado correctamente. Recibirás un email con tu licencia en breve.</p>
+            <p>Gracias por confiar en SRPK Pro.</p>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <div class="footer-links">
+                <a href="https://docs.srpk.io">Documentación</a>
+                <a href="https://github.com/srpkio">GitHub</a>
+                <a href="mailto:support@srpk.io">Soporte</a>
+            </div>
+            <p>&copy; 2024 SRPK Pro. Todos los derechos reservados.</p>
+            <p style="font-size: 0.875rem; margin-top: 8px;">
+                Pagos seguros en blockchain • BNB, USDT y ETH en Binance Smart Chain
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Configuration
+        const PAYMENT_API = '/api/crypto';
+        const BSC_CHAIN_ID = '0x38'; // 56 in hex
+        const PAYMENT_ADDRESS = '0x680c48F49187a2121a25e3F834585a8b82DfdC16';
+        
+        // State
+        let selectedPlan = null;
+        let selectedAmount = null;
+        let selectedToken = 'BNB';
+        let web3 = null;
+        let userAccount = null;
+        let transactionHash = null;
+
+        // Initialize Web3Modal
+        const Web3Modal = window.Web3Modal.default;
+        const web3Modal = new Web3Modal({
+            cacheProvider: false,
+            providerOptions: {}
+        });
+
+        // Select pricing plan
+        function selectPlan(plan, amount) {
+            selectedPlan = plan;
+            selectedAmount = amount;
+            document.getElementById('crypto-payment').style.display = 'block';
+            document.getElementById('crypto-payment').scrollIntoView({ behavior: 'smooth' });
+            updatePaymentAmount();
+        }
+
+        // Close payment form
+        function closePayment() {
+            document.getElementById('crypto-payment').style.display = 'none';
+            resetPaymentForm();
+        }
+
+        // Select payment token
+        function selectToken(token) {
+            selectedToken = token;
+            document.querySelectorAll('.token-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            document.querySelector(`[data-token="${token}"]`).classList.add('selected');
+            updatePaymentAmount();
+        }
+
+        // Update payment amount display
+        async function updatePaymentAmount() {
+            const amountDiv = document.getElementById('payment-amount');
+            
+            if (selectedToken === 'USDT') {
+                amountDiv.textContent = `${selectedAmount} USDT`;
+            } else {
+                amountDiv.textContent = `${selectedAmount} USD en ${selectedToken}`;
+                // In production, fetch current price from API
+                try {
+                    const response = await fetch(`${PAYMENT_API}/calculate-amount`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            productType: selectedPlan,
+                            token: selectedToken
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            amountDiv.textContent = `${data.amount} ${selectedToken}`;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error calculating amount:', error);
+                }
+            }
+        }
+
+        // Copy payment address
+        function copyAddress() {
+            navigator.clipboard.writeText(PAYMENT_ADDRESS).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '¡Copiado!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            });
+        }
+
+        // Connect wallet
+        async function connectWallet() {
+            const connectBtn = document.querySelector('.wallet-connect');
+            const connectText = document.getElementById('connect-text');
+            const connectSpinner = document.getElementById('connect-spinner');
+            
+            try {
+                connectText.style.display = 'none';
+                connectSpinner.style.display = 'inline-block';
+                
+                // Connect to Web3
+                const provider = await web3Modal.connect();
+                web3 = new Web3(provider);
+                
+                // Get accounts
+                const accounts = await web3.eth.getAccounts();
+                userAccount = accounts[0];
+                
+                // Check network
+                const chainId = await web3.eth.getChainId();
+                if (chainId !== 56) {
+                    await switchToBSC();
+                }
+                
+                connectText.textContent = `${userAccount.slice(0, 6)}...${userAccount.slice(-4)}`;
+                connectText.style.display = 'inline';
+                connectSpinner.style.display = 'none';
+                
+                // Enable verify button
+                document.getElementById('verify-button').disabled = false;
+                
+                // Show status
+                showStatus('Wallet conectada. Puedes proceder con el pago.', 'success');
+                
+            } catch (error) {
+                console.error('Error connecting wallet:', error);
+                connectText.style.display = 'inline';
+                connectSpinner.style.display = 'none';
+                showStatus('Error al conectar wallet. Por favor intenta de nuevo.', 'error');
+            }
+        }
+
+        // Switch to BSC network
+        async function switchToBSC() {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: BSC_CHAIN_ID }],
+                });
+            } catch (switchError) {
+                // This error code indicates that the chain has not been added to MetaMask.
+                if (switchError.code === 4902) {
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                                chainId: BSC_CHAIN_ID,
+                                chainName: 'Binance Smart Chain',
+                                nativeCurrency: {
+                                    name: 'BNB',
+                                    symbol: 'BNB',
+                                    decimals: 18
+                                },
+                                rpcUrls: ['https://bsc-dataseed.binance.org/'],
+                                blockExplorerUrls: ['https://bscscan.com/']
+                            }],
+                        });
+                    } catch (addError) {
+                        throw addError;
+                    }
+                }
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('payment-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const name = document.getElementById('name').value;
+            const verifyBtn = document.getElementById('verify-button');
+            const verifyText = document.getElementById('verify-text');
+            const verifySpinner = document.getElementById('verify-spinner');
+            
+            if (!email || !name) {
+                showStatus('Por favor completa todos los campos.', 'error');
+                return;
+            }
+            
+            if (!userAccount && !transactionHash) {
+                showStatus('Por favor conecta tu wallet o ingresa el hash de la transacción.', 'error');
+                return;
+            }
+            
+            verifyBtn.disabled = true;
+            verifyText.style.display = 'none';
+            verifySpinner.style.display = 'inline-block';
+            
+            try {
+                if (userAccount && !transactionHash) {
+                    // Send payment through wallet
+                    showStatus('Esperando confirmación de la transacción...', 'pending');
+                    
+                    if (selectedToken === 'BNB') {
+                        // Send BNB
+                        const amount = web3.utils.toWei(selectedAmount.toString(), 'ether');
+                        const tx = await web3.eth.sendTransaction({
+                            from: userAccount,
+                            to: PAYMENT_ADDRESS,
+                            value: amount
+                        });
+                        transactionHash = tx.transactionHash;
+                    } else {
+                        // For USDT/ETH, would need to interact with token contract
+                        showStatus('Por favor envía manualmente el token y luego ingresa el hash de la transacción.', 'pending');
+                        verifyBtn.disabled = false;
+                        verifyText.style.display = 'inline';
+                        verifySpinner.style.display = 'none';
+                        return;
+                    }
+                }
+                
+                // Verify payment
+                const response = await fetch(`${PAYMENT_API}/verify-payment`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        txHash: transactionHash,
+                        productType: selectedPlan,
+                        email: email,
+                        name: name,
+                        token: selectedToken
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showStatus('¡Pago verificado exitosamente!', 'success');
+                    document.getElementById('crypto-payment').style.display = 'none';
+                    document.getElementById('success-message').style.display = 'block';
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    showStatus(result.error || 'Error al verificar el pago.', 'error');
+                }
+                
+            } catch (error) {
+                console.error('Payment error:', error);
+                showStatus('Error al procesar el pago. Por favor intenta de nuevo.', 'error');
+            } finally {
+                verifyBtn.disabled = false;
+                verifyText.style.display = 'inline';
+                verifySpinner.style.display = 'none';
+            }
+        });
+
+        // Show status message
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('payment-status');
+            statusDiv.textContent = message;
+            statusDiv.className = `payment-status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+
+        // Reset payment form
+        function resetPaymentForm() {
+            document.getElementById('payment-form').reset();
+            selectedPlan = null;
+            selectedAmount = null;
+            selectedToken = 'BNB';
+            userAccount = null;
+            transactionHash = null;
+            document.getElementById('payment-status').style.display = 'none';
+            document.getElementById('verify-button').disabled = true;
+        }
+
+        // Add manual transaction hash input option
+        document.addEventListener('DOMContentLoaded', () => {
+            const paymentInfo = document.querySelector('.payment-info');
+            const manualInput = document.createElement('div');
+            manualInput.style.marginTop = '16px';
+            manualInput.innerHTML = `
+                <div class="form-group">
+                    <label class="form-label" for="tx-hash">O ingresa el hash de transacción (si pagaste manualmente)</label>
+                    <input type="text" id="tx-hash" class="form-input" placeholder="0x..." onchange="handleTxHashInput(this.value)">
+                </div>
+            `;
+            paymentInfo.appendChild(manualInput);
+        });
+
+        function handleTxHashInput(hash) {
+            if (hash && hash.startsWith('0x') && hash.length === 66) {
+                transactionHash = hash;
+                document.getElementById('verify-button').disabled = false;
+                showStatus('Hash de transacción ingresado. Puedes verificar el pago.', 'success');
+            }
+        }
+    </script>
+</body>
+</html>

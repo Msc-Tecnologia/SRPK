@@ -1,0 +1,21 @@
+{
+  "name": "srpk-payment-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for SRPK Pro crypto payments",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.js --network bsc",
+    "deploy-testnet": "hardhat run scripts/deploy.js --network bscTestnet",
+    "verify": "hardhat verify --network bsc"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.9.3"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "hardhat": "^2.19.0",
+    "dotenv": "^16.3.1",
+    "@nomicfoundation/hardhat-verify": "^2.0.0"
+  }
+}

@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # Crypto Payment API Service
+  crypto-payment-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.crypto
+    image: srpk-crypto-payment:latest
+    container_name: srpk-crypto-payment-api
+    ports:
+      - "5001:5001"
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - BSC_RPC_URL=${BSC_RPC_URL:-https://bsc-dataseed.binance.org/}
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
+      - CONTRACT_ABI=${CONTRACT_ABI}
+      - JWT_SECRET=${JWT_SECRET}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - DATABASE_URL=${DATABASE_URL}
+      - DOWNLOADS_DIR=/app/downloads
+      - PORT=5001
+    volumes:
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+      - ./downloads:/app/downloads:ro
+      - ./contracts/deployments:/app/deployments:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - srpk-network
+
+  # Nginx Web Server for Landing Page with Crypto Support
+  nginx-crypto:
+    image: nginx:alpine
+    container_name: srpk-nginx-crypto
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./landing:/usr/share/nginx/html:ro
+      - ./nginx.crypto.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - crypto-payment-api
+    restart: unless-stopped
+    networks:
+      - srpk-network
+
+  # PostgreSQL Database (for storing licenses and crypto payments)
+  postgres:
+    image: postgres:15-alpine
+    container_name: srpk-postgres
+    environment:
+      - POSTGRES_USER=${DB_USER:-srpk}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-secure_password}
+      - POSTGRES_DB=${DB_NAME:-srpk_licenses}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - srpk-network
+
+  # Redis Cache (for session management and transaction tracking)
+  redis:
+    image: redis:7-alpine
+    container_name: srpk-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - srpk-network
+
+  # SRPK Analyzer Service
+  srpk-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: srpk:3.1
+    container_name: srpk-analyzer
+    volumes:
+      - ./test_project:/app/test_project
+      - ./output:/app/output
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python srpk_v3_1.py /app/test_project
+    networks:
+      - srpk-network
+
+volumes:
+  postgres_data:
+
+networks:
+  srpk-network:
+    driver: bridge
