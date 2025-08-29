@@ -7,10 +7,12 @@ import os
 import json
 import logging
 from datetime import datetime
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import stripe
 from dotenv import load_dotenv
+import paypalrestsdk
+import jwt
 
 # Load environment variables
 load_dotenv()
@@ -28,6 +30,16 @@ CORS(app, origins=os.getenv('ALLOWED_ORIGINS', '*').split(','))
 
 # Configure Stripe
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+
+# Configure PayPal
+paypalrestsdk.configure({
+    "mode": os.getenv('PAYPAL_MODE', 'sandbox'),  # sandbox or live
+    "client_id": os.getenv('PAYPAL_CLIENT_ID', ''),
+    "client_secret": os.getenv('PAYPAL_CLIENT_SECRET', '')
+})
+
+# JWT Secret for license tokens
+JWT_SECRET = os.getenv('JWT_SECRET', 'change-me-in-production')
 
 # Price IDs mapping
 PRICE_IDS = {
@@ -125,11 +137,14 @@ def process_payment():
             # Send license key email (implement this based on your email service)
             license_key = generate_license_key(customer.id, subscription.id)
             send_license_email(data['email'], data['name'], license_key, price_info['product_name'])
+            license_token = generate_license_token(email=data['email'], license_key=license_key, product_name=price_info['product_name'])
             
             return jsonify({
                 'success': True,
                 'subscription_id': subscription.id,
                 'customer_id': customer.id,
+                'license_key': license_key,
+                'license_token': license_token,
                 'message': 'Payment processed successfully. Check your email for license details.'
             })
         
@@ -196,6 +211,168 @@ def stripe_webhook():
         # Send payment failure notification
     
     return jsonify({'received': True})
+
+@app.route('/api/paypal/create-payment', methods=['POST'])
+def paypal_create_payment():
+    """Create PayPal payment and return approval URL"""
+    try:
+        data = request.json or {}
+        required_fields = ['priceId', 'email', 'name', 'returnUrl', 'cancelUrl']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+
+        price_id = data['priceId']
+        if price_id not in PRICE_IDS:
+            return jsonify({'success': False, 'error': 'Invalid price ID'}), 400
+
+        price_info = PRICE_IDS[price_id]
+
+        payment = paypalrestsdk.Payment({
+            "intent": "sale",
+            "payer": {"payment_method": "paypal"},
+            "redirect_urls": {
+                "return_url": data['returnUrl'],
+                "cancel_url": data['cancelUrl']
+            },
+            "transactions": [{
+                "item_list": {
+                    "items": [{
+                        "name": price_info['product_name'],
+                        "sku": price_id,
+                        "price": f"{price_info['amount'] / 100:.2f}",
+                        "currency": price_info['currency'].upper(),
+                        "quantity": 1
+                    }]
+                },
+                "amount": {
+                    "total": f"{price_info['amount'] / 100:.2f}",
+                    "currency": price_info['currency'].upper()
+                },
+                "description": f"Subscription to {price_info['product_name']}"
+            }]
+        })
+
+        if payment.create():
+            approval_url = next((link.href for link in payment.links if link.rel == "approval_url"), None)
+            return jsonify({
+                'success': True,
+                'payment_id': payment.id,
+                'approval_url': approval_url
+            })
+        else:
+            logger.error(f"PayPal create payment error: {payment.error}")
+            return jsonify({'success': False, 'error': 'Error creating PayPal payment'}), 400
+
+    except Exception as e:
+        logger.error(f"Unexpected error (PayPal create): {str(e)}")
+        return jsonify({'success': False, 'error': 'Unexpected error'}), 500
+
+
+@app.route('/api/paypal/execute-payment', methods=['POST'])
+def paypal_execute_payment():
+    """Execute PayPal payment after approval and issue license"""
+    try:
+        data = request.json or {}
+        required_fields = ['paymentId', 'PayerID', 'priceId', 'email', 'name']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+
+        payment = paypalrestsdk.Payment.find(data['paymentId'])
+        if payment.execute({"payer_id": data['PayerID']}):
+            price_info = PRICE_IDS.get(data['priceId'])
+            if not price_info:
+                return jsonify({'success': False, 'error': 'Invalid price ID'}), 400
+
+            # Generate license and token
+            customer_id = payment.payer.payer_info.payer_id if hasattr(payment, 'payer') else data['email']
+            subscription_id = payment.id
+            license_key = generate_license_key(customer_id, subscription_id)
+            send_license_email(data['email'], data['name'], license_key, price_info['product_name'])
+            license_token = generate_license_token(email=data['email'], license_key=license_key, product_name=price_info['product_name'])
+
+            return jsonify({
+                'success': True,
+                'payment_id': payment.id,
+                'license_key': license_key,
+                'license_token': license_token,
+                'message': 'Payment processed successfully. Check your email for license details.'
+            })
+        else:
+            logger.error(f"PayPal execute error: {payment.error}")
+            return jsonify({'success': False, 'error': 'Error executing PayPal payment'}), 400
+
+    except Exception as e:
+        logger.error(f"Unexpected error (PayPal execute): {str(e)}")
+        return jsonify({'success': False, 'error': 'Unexpected error'}), 500
+
+
+def generate_license_token(email: str, license_key: str, product_name: str) -> str:
+    """Generate a signed JWT token representing the license"""
+    payload = {
+        'sub': email,
+        'lk': license_key,
+        'product': product_name,
+        'iat': datetime.utcnow().timestamp(),
+        'nbf': datetime.utcnow().timestamp(),
+        'exp': int(datetime.utcnow().timestamp()) + 60 * 60 * 24 * 30  # 30 days
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
+    if isinstance(token, bytes):
+        token = token.decode('utf-8')
+    return token
+
+
+@app.route('/api/licenses/verify', methods=['GET'])
+def verify_license():
+    """Verify license token validity"""
+    token = request.args.get('token') or _extract_bearer_token(request.headers.get('Authorization', ''))
+    if not token:
+        return jsonify({'valid': False, 'error': 'Missing token'}), 400
+    try:
+        claims = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        return jsonify({'valid': True, 'claims': claims})
+    except jwt.ExpiredSignatureError:
+        return jsonify({'valid': False, 'error': 'Token expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'valid': False, 'error': 'Invalid token'}), 401
+
+
+def _extract_bearer_token(auth_header: str) -> str:
+    if not auth_header:
+        return ''
+    parts = auth_header.split()
+    if len(parts) == 2 and parts[0].lower() == 'bearer':
+        return parts[1]
+    return ''
+
+
+ALLOWED_DOWNLOADS = {
+    'SRPK Pro Starter': ['srpk-starter.zip'],
+    'SRPK Pro Professional': ['srpk-professional.zip']
+}
+
+
+@app.route('/api/downloads', methods=['GET'])
+def secure_download():
+    """Serve product downloads if token is valid and file allowed"""
+    token = request.args.get('token') or _extract_bearer_token(request.headers.get('Authorization', ''))
+    filename = request.args.get('file')
+    if not token or not filename:
+        return jsonify({'success': False, 'error': 'Missing token or file parameter'}), 400
+    try:
+        claims = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        product = claims.get('product')
+        allowed = ALLOWED_DOWNLOADS.get(product, [])
+        if filename not in allowed:
+            return jsonify({'success': False, 'error': 'File not allowed for this license'}), 403
+        downloads_dir = os.getenv('DOWNLOADS_DIR', os.path.join(os.getcwd(), 'downloads'))
+        return send_from_directory(directory=downloads_dir, path=filename, as_attachment=True)
+    except jwt.ExpiredSignatureError:
+        return jsonify({'success': False, 'error': 'Token expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'success': False, 'error': 'Invalid token'}), 401
 
 def generate_license_key(customer_id, subscription_id):
     """Generate a unique license key"""

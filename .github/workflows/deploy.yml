@@ -100,6 +100,19 @@ jobs:
         key: ${{ secrets.STAGING_SSH_KEY }}
         script: |
           cd /opt/srpk
+          cat > .env << 'EOF'
+          FLASK_ENV=production
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          PAYPAL_MODE=${{ secrets.PAYPAL_MODE }}
+          PAYPAL_CLIENT_ID=${{ secrets.PAYPAL_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET=${{ secrets.PAYPAL_CLIENT_SECRET }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          SECRET_KEY=${{ secrets.APP_SECRET_KEY }}
+          ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          EOF
           docker-compose pull
           docker-compose up -d
           docker system prune -f
@@ -121,6 +134,19 @@ jobs:
         key: ${{ secrets.PRODUCTION_SSH_KEY }}
         script: |
           cd /opt/srpk
+          cat > .env << 'EOF'
+          FLASK_ENV=production
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          PAYPAL_MODE=${{ secrets.PAYPAL_MODE }}
+          PAYPAL_CLIENT_ID=${{ secrets.PAYPAL_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET=${{ secrets.PAYPAL_CLIENT_SECRET }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          SECRET_KEY=${{ secrets.APP_SECRET_KEY }}
+          ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          EOF
           docker-compose pull
           docker-compose up -d --no-deps --scale payment-api=3
           docker system prune -f
