@@ -26,6 +26,8 @@ RUN pip install --no-cache-dir \
 COPY payment_api.py .
 COPY license_manager.py .
 COPY schema.sql .
+COPY build ./build
+COPY contracts ./contracts
 
 # Create non-root user
 RUN useradd -m -u 1000 payment && chown -R payment:payment /app
