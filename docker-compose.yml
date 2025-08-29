@@ -15,12 +15,18 @@ services:
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - PAYPAL_MODE=${PAYPAL_MODE}
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET}
+      - JWT_SECRET=${JWT_SECRET}
       - SECRET_KEY=${SECRET_KEY}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - DATABASE_URL=${DATABASE_URL}
+      - DOWNLOADS_DIR=/app/downloads
     volumes:
       - ./logs:/app/logs
       - ./.env:/app/.env:ro
+      - ./downloads:/app/downloads:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
